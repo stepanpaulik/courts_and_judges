@@ -1,0 +1,293 @@
+---
+title: "Introduction to R"
+author: "Štěpán Paulík"
+date: "2023-05-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+# install.packages("tidyverse")
+library(tidyverse)
+```
+
+This is a RMarkdown file, with witch we will learn how to do basics of programming in R. Some of you have said that you have in the past used either SPSS or Stata. I don't have any experience with the former, but Stata is a language based on commands, i.e., you sequentially query simple commands to the computer. Such a language cannot, howeverer, work with more complex objects or functions. 
+
+In Stata, for example, you could've always loaded one dataset at a time and it would be hard to modify it. R, on the other hand, is a full fledged programming language (like Python, for example) that was historically developed as a statistical programming language but now is a so-called high-level dynamic programming language. That means that you can do anything in R, not just statistics (you can build iPhone applications, web applications, do machine learning etc.).
+
+There are multiple advantages and disadvatanges to R in comparison to other programming languages (namely Python). First the disadvantages. Because R was primarily developed as a statistical programming language, it carries some idiosyncracies in syntax (in normal programming language, you assign values with *=*, in R it's traditionally done via *<-* but you can also use *=*). Moreover, because it is mainly used by people without background in computer science, a lot of the code you may encounter is inefficient or ugly [I'll try to do my best to do neither]. Lastly, most of the field outside research uses Python for all similar tasks (although that's sometime clumsier). Now to the advantages. It is very efficient at what it was made for: statistics and data visualisation, more than any other language (including Stata/SPSS I believe). Moreover, it has a specific syntax called *tidyverse* or *tidysyntax* (which is more of a philosophy how to do data science in general) that when utilised is far more cleaner and efficient than standard programming syntax, which contains a lot of verbose (i.e., a lot of repeating words and sentences - think of the student that needs to submit an essay but doesn't know what to write so they repeat the same information phrased slightly differently and use empty words).
+
+But let's now skip all that theory and let's get to the practical stuff.
+
+## Objects
+
+### Base type objects
+At the center of any programming language are objects. Object is a certain space in memory with a certain value which is usually tied to its name (in reality, the name is tied to the object and not the other way around). The assignement in practice looks like this (I am using the programming *=* instead of the R *<-*):
+
+``` {r object}
+x = 1
+x
+```
+
+This way, we have created an object with the value of 1 and attached a name *x* to it. There are multiple base types of objects that you may work with:
+
+(1) a character,
+(2) a numeric,
+    (a) an integer (a whole number),
+    (b) a double (a number with decimal),
+(3) a logical (TRUE or FALSE)
+
+There are many extension to these base types but they are always stored in this base form (for example date is stored as a a number of days from the origin date [1.1.1970] but it looks like a date [dd-mm-yyy]). You can find out the type of an object with the function typeof()
+
+``` {r base_types}
+name = "Štěpán Paulík"
+age = 26L
+height = 182.5
+student_status = TRUE
+
+typeof(name)
+typeof(age)
+typeof(height)
+typeof(student_status)
+```
+
+These objects can be stored in vectors - vector is (at least) one dimensional array and it allows you to store more values in one object. There are two types of vectors:
+
+(1) atomic vectors that allow you to store values of one type
+(2) lists that allow you to store values of more than one type simultaneously
+
+To create a atomic vector, we use the function c(), for list it's list().
+
+``` {r vector}
+# Now we take the same value from before but add one more value so that the single values turn into atomic type vectors
+name = c("Štěpán Paulík", "Lee Epstein")
+age = c(26L, 65L)
+height = c(182.5, 170.1)
+student_status = c(TRUE, FALSE)
+
+typeof(name)
+typeof(age)
+typeof(height)
+typeof(student_status)
+
+# Notice that the types don't change, it's because even in the former case, the single values were stored as an atomic vector too, only with one value
+```
+
+Let's now create new object *university_staff* that is a **list** that contains the information on me and Lee Epstein at the same time.
+
+``` {r list}
+university_staff = list(name = name,
+                  age = age,
+                  height = height,
+                  student_status = student_status)
+university_staff
+```
+
+Notice something cool cool. Instead of typing out all the information again, we could make use of the fact that we have already created objects with the names *name, age, height and student_stats* and we could simply refer to the names that point to the object itself (i.e., the values) and simply merge them to a list. List is a super important base object type, because it allows you to store values of any type simultaneously (even a list within a list). 
+
+While lists are very useful in programming, for data science an extension called *data.frame* has been developed, which stores the data in a tabular form. Look at the following code:
+
+``` {r df}
+university_staff_df = as.data.frame(university_staff)
+university_staff_df
+```
+
+Typically, the as.XXX() functions allow you to transform objects to another type. Test it yourself and transform the following logical vector to a numeric vector - see what the result is and try to understand the logic behind it. Similarly, try to find out the type of the *university_staff_df*.
+
+``` {r type_transform}
+logical_vector = c(TRUE,FALSE,TRUE)
+
+## Write your code here
+
+
+```
+
+Data.frames are incredibly important object type. They are an extension to the list in the sense that each column of the data.frame is an atomic type vector, yet each column can store different object type. The storage of data in the tabular form makes them easy to read. There is a tidyverse extension (more on that later) to data.frame called tibble, which resolves some of the issues of data.frame.
+
+### Subsetting vectors
+
+R can do many things, among them it can communicate with your system, with databases etc. The following example reads a file from your computer but you could, for example, query a SQL database, download data from a website, or communicate with a cloud storage service such as Google Drive or OneDrive.
+
+``` {r load_data}
+judges = readRDS("../data/US_judges.rds")
+metadata = readRDS("../data/US_metadata.rds") %>% select(doc_id, date_decision, date_submission)
+```
+
+We've now read into memory a real life example of information on the Czech constitutional court judges. While the data.frame is relatively small (it only has 43 rows, I am working with datasets that have hundreds of thousands rows), you will often want to access only smaller portion of this data. Such a task is referred to as *subsetting*. In the one-dimensional context, things are pretty simple. You can access any of the elements with the [] brackets:
+
+``` {r subsetting_judges}
+
+# Here I firstly create a one dimensional atomic vector of type character of names of all CCC judges
+judge_names = judges$judge_name
+judge_names[1]
+
+```
+
+In the more dimensional objects (lists, data.frames), there are multiple different ways to subset any object. 
+
+``` {r subsetting_judges2}
+
+# You can use the $ sign to subset columns by their name, or [[i]] to by index, or by [["name"]] to achieve the same as with the $ sign. Here you can see the three ways to subset the gender column.
+
+judges$gender
+judges[[4]]
+judges[["gender"]]
+
+# To subset rows, you need to add a second dimension. That is done with the [x,y] notation, where x subsets rows, y subsets columns. To get the first row, for example, you leave the y variable empty, to subset a specific cell, you fill in both.
+
+judges[2,]
+judges[1,1]
+judges$gender[1]
+```
+
+You can also use some pretty fancy stuff to subset your data, namely ranges and conditions. Range are used when you would like to subset more than one row/column and conditions are used to subset based on meeting a logical statement.
+
+``` {r}
+# Subset just the first 5 rows and all columns (the empty dimension after the comma means all columns) using the range symbol :
+judges[1:5]
+
+# Subset just the female judges and all columns. For equality, in logical statements double "==" is used because otherwise it would look like the assignement operator.
+judges[judges$gender == "F",]
+```
+
+For most of the operations with data, the function length() comes in handy. It returns the number of length of an R object. You can get, for exapmle, the number of observations after satistfying certain condition. Try to look at the following code and infer what length of the object is the function actually measuring depending on the type of object:
+
+``` {r length}
+length(age)
+length(judges)
+length(judges$age)
+```
+
+### Exercises
+
+(1) We would like to know what's the proportion of judges that studied in Prague (the "CUNI" university) and of judges that studied in Brno (the "MUNI" university). Using subsetting and some basic math functions, calculate the proportion (so not interested in absolute number but the proportion which sums to 1 across both groups).
+
+(2) Figure out as many ways as possible to subset the education of the judge "Ludvík David". 
+
+(3) We would like to know whether male and female judges are on average of different age. R has a base function mean(), which takes as an argument numeric/logical vector. Try to apply your knowledge of subsetting and calculate the mean age for both male and female judges [here using the average year of birth suffices but whoever feels fancy may transform it into years].
+
+### Factors
+
+Factor are a special type of integer (they are stored as such). They allow you to pre-define levels that a variable can take up. That means that you can setup a variable with 4 levels, out of 2 can have 0 occurances yet they are still present in the data. That comes in very handy in a lot of research, you can see how I turned the character type vector of gender into a factor with 4 levels, 2 of which are not present among the rather old judges (I assume!). 
+
+``` {r factors}
+judges = judges %>% mutate(
+  gender = factor(gender, levels = c("M","F","NB", "agender"))
+)
+
+ggplot(data = judges, mapping = aes(x = gender)) +
+  geom_bar() +
+  scale_x_discrete(drop=FALSE)
+```
+
+R data.frames behave weirdly in the sense that they typically transform any character vector into factor by taking all the existing unique values in the vector and translating them into levels. Tibble (as we will see next week) does not behave like this. Could you name a reason why such an automatic behavior is wrong?
+
+## Onto to the more fancier stuff
+
+Now we've covered some basics of data manipulation in R. Let's now look at two very handy but more advanced concepts: *functions* and *loops*. 
+
+### Loops
+
+In my dataset, I store the information about the age of judges as a year of birth. Imagine you'd like to instead compute their age.
+
+Think for a second how you would go about it. And try to draft the solution first:
+
+``` {r your_solution}
+
+```
+
+We can substract the year of birth of each judge from the current year to see how old they are. To extract the current year, we can combine two functions - one is from base R, one comes from the lubridate package, which is part of tidyverse
+
+``` {r age}
+# See the current year
+Sys.Date()
+year(Sys.Date())
+
+# What happens when we try to substract the whole vector?
+year(Sys.Date()) - judges$yob
+```
+
+"-" is a function, which takes as an argument the left and the right side of it and then substracts them. What we can also observe is that it's so-called vectorised function, as in it can take as an input a vector and applies the operation to each and every element of the function. That's usually a good thing but unfortunately not all functions are vectorised. 
+
+There are many solutions for such a problem (the most efficient being functions that vectorise any function) but the most basic one is the so-called for loop. A for loop allows you to iterate over objects. As in it does what you tell it to do as many times as you tell it to do. If we wanted to achieve the same result as before, we could write the code in following way:
+
+``` {r}
+for(i in 1:length(judges$age)){
+  judges$age[[i]] = year(Sys.Date()) - judges$yob[[i]]
+}
+```
+
+What happened? The for loop (it exists in any programming language) has two parts. Firstly, it has the specification of the iterator, a usual practice is to call it *i* or *j*, with which you specify how many times will the for loop iterate. Each iteration increases the value of i by 1. In our example, I tell the loop to start with 1 and iterate up until it reaches the length of the vector of judges' ages. 
+
+The first part is followed by the curly brackets, where you tell the loop what to do on every iteration. Here I tell it to substract the year of birth of the ith judge from the current year and to save it to the ith position in the new data.frame column age.
+
+#### Just a little bit of theory
+In general in programming, some solutions to any given problem are more or less flexible. The more flexible solutions can be applied more broadly, however, one sacrifices computing efficiency. The less flexible the solution is, the faster will your code work. For loops, in general, are one of the most flexible solutions to any iteration/vectorisation problem. A function that is vectorised will run way faster than a for loop, a function whose purpose is to vectorise functions (*modify(), map(), apply()*) will run slower than already vectorised functions but faster than for loop.
+
+I think it is key to understand the principle of for loops, they offer advantages (like easy parallelisation) but it's always good to first think whether there isn't a more efficient solution before slapping a for loop into your code.
+
+### Exercises
+
+(1) The *metadata* object stores information on the start of court proceedings and their end before the Czech CCC. Using for loop [despite the fact there are more efficient ways to achieve the same outcome], try to calculate the length of the proceedings. Find a way how to reorder so that the longest proceedings are on the top.
+
+(2) The *judge_name* column store information on the name of the judge. Write a script that will letter by letter reverse the names of judges and store them in a new column *eman_egduj* using for loop [again, there are way more efficient solutions]. To do this, look up the following functions with the ?:
+  str_split()
+  paste()
+  
+## Functions
+
+Functions are the absolute cornerstone of good practice of data science programming. While object oriented programming is also a thing (and R utilities it a lot), most of researchers' code I've so far seen is just a random mess of script that runs sequentially (you wouldn't call it either object oriented or functional oriented code). That creates a lot of messy code, verbose and inefficiency.
+
+Functions in general are an object that takes any amount of arguments [including zero], they process the data based on the code within themselves and then throw out a resulting output. We've already seen examples of multiple functions, let's see how they work in practice.
+
+Functions can be broken down into three components: arguments, body, and environment. Arguments are in the () brackets, body in the {} and the environment is the environment in which the function is processed. The function object presents a general formula how to take an input, process it and produce an output. The real processing takes place when you call the function with concrete arguments
+
+``` {r function}
+sum = function(x, y){
+  if(!is.numeric(x) | !is.numeric(y)){
+    stop("The arguments are not numeric")
+  } else{
+  result = x + y
+  return(result) 
+  }
+}
+
+sum(x = 5, y = 2)
+sum(x = 3, y = "1")
+
+# You can also write simple functions on one line
+add_one = function(x) x + 1
+add_one(c(5,1))
+
+# When you call a function the arguments don't have to be named. R then uses some scoping rules to figure out which argument is which (namely the order). However, I think it's a good practice to include the argument names in the function calls.
+sum(5,2)
+```
+
+### Exercise (functions)
+
+(1) Write a simple function that will take as an input two arguments: a name and a surname and will print the string: "Hello *name surname*!" (see the function paste())
+
+(2) Create a function that takes any two dates as an argument and returns the difference in years between them. Using an if-else condition try to check, whether the user input is a date and if it isn't throw out an error with the function stop(). Try using different calls to compute the
+    (a) age of the judges at this moment
+    (b) age of judges when they took up mandate
+    (c) length of their mandate
+ 
+### Solutions
+
+``` {r solution_subsetting}
+prop_CUNI = judges[judges$gender == "M",3]
+
+# Solution for (1)
+mean(x = year(Sys.Date()) - judges[judges$gender == "M",3])
+mean(x = year(Sys.Date()) - judges[judges$gender == "F",3])
+```
+
+
+``` {r solutions_for_2}
+for(i in 1:length(judges$judge_name)){
+  name = str_split(judges$judge_name[[i]], pattern = "")
+  name = as.vector(name[[1]])
+  name_rev = rev(name)
+  judges$eman_egduj[[i]] = paste(name_rev, collapse = "")
+}
+```
