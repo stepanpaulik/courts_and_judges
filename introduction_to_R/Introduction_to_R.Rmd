@@ -144,7 +144,7 @@ You can also use some pretty fancy stuff to subset your data, namely ranges and 
 
 ``` {r}
 # Subset just the first 5 rows and all columns (the empty dimension after the comma means all columns) using the range symbol :
-judges[1:5]
+judges[1:5,]
 
 # Subset just the female judges and all columns. For equality, in logical statements double "==" is used because otherwise it would look like the assignement operator.
 judges[judges$gender == "F",]
@@ -205,6 +205,12 @@ year(Sys.Date())
 
 # What happens when we try to substract the whole vector?
 year(Sys.Date()) - judges$yob
+
+judges %>% 
+group_by(uni) %>% 
+summarize(N = n()) %>%
+  mutate(freq = N / sum(N))
+
 ```
 
 "-" is a function, which takes as an argument the left and the right side of it and then substracts them. What we can also observe is that it's so-called vectorised function, as in it can take as an input a vector and applies the operation to each and every element of the function. That's usually a good thing but unfortunately not all functions are vectorised. 
@@ -273,21 +279,93 @@ sum(5,2)
     (c) length of their mandate
  
 ### Solutions
+#### Solutions - objects
+``` {r solutions_objects}
+# Exercise 1
+# Base solution
+CUNI = length(judges[judges$uni == "CUNI",1])/length(judges$uni) 
+MUNI = length(judges[judges$uni == "MUNI",1])/length(judges$uni)
+# Tidyverse solution
+judges %>%
+group_by(uni) %>%
+summarize(N = n()) %>%
+  mutate(prop = N / sum(N))
 
-``` {r solution_subsetting}
-prop_CUNI = judges[judges$gender == "M",3]
+# Exercise 3
+# Base solution
+mean(year(Sys.Date()) - judges$yob[judges$gender == "F"])
+mean(year(Sys.Date()) - judges$yob[judges$gender == "M"])
 
-# Solution for (1)
-mean(x = year(Sys.Date()) - judges[judges$gender == "M",3])
-mean(x = year(Sys.Date()) - judges[judges$gender == "F",3])
+# Tidyverse solution
+judges %>%
+group_by(gender) %>%
+summarize(avg_age = mean(year(Sys.Date()) - yob))
+
+
 ```
 
 
-``` {r solutions_for_2}
+#### Solutions for loop
+``` {r solutions_for}
+# Exercise 1 just compare how quickly do these two solutions run. The reason why it runs so slowly is that it has to generate the column dynamically with each iteration. One solution is to pre-create the column of required length and fill it with any value so that the column that gets filled in with a value does not have to generate dynamically. Other is to just avoid for loops altogether as you can see with the tidyverse solution. While I think for loops can be theoretically made quite fast, it's not worth the hassle, it requires quite extensive knowledge of what's going on so it's simply not worth it.  
+
+start_time <- Sys.time()
+for(i in seq_along(metadata$date_decision)){
+  metadata$length_proceedings[i] = metadata$date_decision[[i]] - metadata$date_submission[[i]]
+}
+end_time <- Sys.time()
+end_time - start_time
+
+# Drop the column so that the code starts from an equal position - the minus sign is used to drop something in the base R
+metadata <- metadata[,-4]
+
+start_time <- Sys.time()
+metadata$length_proceedings = rep(NA, times = length(metadata$date_decision))
+for(i in seq_along(metadata$date_decision)){
+  metadata$length_proceedings[i] = metadata$date_decision[[i]] - metadata$date_submission[[i]]
+}
+end_time <- Sys.time()
+end_time - start_time
+
+# Drop the column so that the code starts from an equal position
+metadata <- metadata[,-4]
+
+start_time <- Sys.time()
+metadata = metadata %>%
+  mutate(length_proceedings = date_decision - date_submission)
+end_time <- Sys.time()
+end_time - start_time
+
+# Exercise 3 reverse the names of judges
 for(i in 1:length(judges$judge_name)){
   name = str_split(judges$judge_name[[i]], pattern = "")
   name = as.vector(name[[1]])
   name_rev = rev(name)
   judges$eman_egduj[[i]] = paste(name_rev, collapse = "")
 }
+```
+
+#### Solutions functions
+``` {r solutions_functions}
+# It's usually a good practice to include conditions that catch errors and tell you what went wrong so that you can see and fix the problem. In this case, I create a condition which is met when either age1 or (OR is a logical operator symbolled by | ) age2 argument isn't a date, the stop() function then stops the function and returns the error. If the condition isn't met. Saving the output into an output variable and then explicitly returning is optional, if you do not include the assignement output =, R will read the result of the deduction as the output
+
+age_diff = function(age1,age2) {
+  if(!lubridate::is.Date(age1) | !lubridate::is.Date(age2)){
+    stop("The arguments are not date")
+  } else{
+    output = year(age1) - year(age2)
+    return(output)
+  }
+}
+age_diff(judges$end, judges$start)
+
+# A brief note here, you'd have to complicate the function further to work with the year of birth because it's not stored as a date. But it's not an unresolveable problem. 
+  
+age_diff = function(age1,age2){
+  if(!lubridate::is.Date(age1) | !lubridate::is.Date(age2)){
+    stop("The arguments are not date")
+  } else{
+    year(age1) - year(age2)
+}}
+
 ```
