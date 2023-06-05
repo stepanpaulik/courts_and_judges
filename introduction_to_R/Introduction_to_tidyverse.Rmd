@@ -1,0 +1,253 @@
+---
+title: "Introduction_to_tidyverse"
+author: "Štěpán Paulík"
+date: "2023-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+*Just a brief note on RMarkdown. This file was written in RMarkdown, which is a reporting language, i.e., it allows you to combine coding as well as writing (it's therefore used to write papers, which utilize R code). It is in principle similar to the more developed LaTeX. There are two features I should've discussed in the class and that may have been confusing. Firstly, in RMarkdown file, you should write your code in the '''{r} YOUR CODE GOES HERE''' chunks, otherwise the compiler reads it as ordinary text, not as a code to be executed. If you want a file that comprises only of code (which I would maybe suggest), open a new R script file. There everything is read as a code, unless you comment it out with the #. Secondly, you can 'knit' the RMarkdown file so that it outputs it into a well formatted document. You can choose HTML/PDF/Word output (I went with HTML as default).*
+
+## Tidyverse
+We have now learned what is called base R syntax. While it is key to know it and understand it, whole lot of the base functions as well as functions of other packages have been "replaced" by the tidy syntax. The tidy syntax is a comprehensive approach to the whole data science process, including data wrangling, modelling and visualisation.
+
+The usual "data science" or data based research workflow looks like this: 
+
+![Standard datascience workflow](https://d33wubrfki0l68.cloudfront.net/795c039ba2520455d833b4034befc8cf360a70ba/558a5/diagrams/data-science-explore.png)
+You usually gather data, tidy them and transform them into a form that can be used for analysis afterwards, you then create a model (whether it's for prediction or inference, classification or regression, doesn't matter). Most of the time you need to communicate any result (to scientific audience, to your bosses...) and visualization serves this purpose very well.
+
+Tidy includes workflow for all the stages, the tidy and transform part (may be referred to as "data wrangling") are handled by the set of packages in the  *tidyverse*, modeling is handled by *tidymodels* and visualization by *ggplot2* (+ there is also *tidytext* for handling text data but it is not very efficient in comparison to some other packages).
+
+Modeling and visualization are I believe topics on their own so we will not delve into them today. We will start just with datawrangling and do some basic statistical steps.
+
+### Just a couple of words on packages
+Programming languages allow for making "extensions" to them and R is no exception. The base R (or Python...) is usually pretty basic so the programming language community develops packages. They unlock whatever you can imagine - statistical packages, packages that transform your code into a web application or iOS application, or packages for spatial visualisation (public transport maps etc.).
+
+The way packages work in R is that you firstly need to install them and then load them into memory. The general rule is that you for any script always want to load as few packages as are necessary - because it obviously takes up your RAM space. The installation is done with the funciton install.packages(), which is vectorised (so you can include a vector of names of packages you want to install), whereas loading into memory is done with library(), which is not vectorised and thus each package must be called separately (which I think is very stupid). You can also observe one difference between the functions: the install function requires a character type vector with the names of the packages it needs to install, whereas the library function requires a reference to the objects themselves (and therefore the names of the objects, i.e., packages, are not put within quotation marks)
+
+``` {r load}
+# install.packages("tidyverse", "rvest")
+
+library(tidyverse)
+library(rvest)
+```
+
+### Load data
+Here we see a basic way to load data as well as a short code from me which wil complicate matters for you further down ;)
+
+``` {r dissents}
+# I load the .rds files
+metadata = readRDS("../data/US_metadata.rds") 
+```
+
+## Importing and tidying data
+
+Usually when you study social sciences, the part of data collection and tidying is skipped in the course. The quantitative oriented courses (but one!) always started in the analysis part. However, obtaining data and transforming them for further analysis is maybe even the most time consuming and work intensive part of the research. Not all the time you will get a dataset handed in in a tidy neat form. Most of the time you need to at least clean and tidy it if not build it yourself.
+
+How do you collect data? I will just very very briefly show you the technique of webscraping. Internet has always fascinated me. It contains so much information at hand. Why not use it? As it happens, you can access all the information - there is now a lot of interesting research on online communities, language etc. that use quantitative methods (for example one of the future assigned papers is on violent language development incel forums).
+
+``` {r webscraping}
+url = "https://en.wikipedia.org/wiki/Federal_Constitutional_Court"
+
+judges_table = url |>
+  read_html() |>
+  html_elements(xpath = '//*[@id="mw-content-text"]/div[1]/table[4]') |>
+  html_table() |>
+  as.data.frame()
+```
+
+As you can already see, the imported wikipedia table is quite 'dirty'. 
+
+**Exercise 1** 
+Try to list all the elements that are wrong on the table. Try to brainstorm ideas how you would clean it and google any matching functions.
+
+The actual cleaning process would entail a lot of work. We won't dwell on it now and we will instead move on to my Czech Apex Courts dataset.
+
+In any case, imagine all the possibilities of research knowing that any information on the internet is accessible to you.
+
+### Piping
+
+The greatest invention of the tidyverse package is the pipeline. While known in other languages, tidyverse made it truly its own. The magritrr pipe *|>* was so successful that the base R later implemented it too under the *|>*. 
+
+The idea of piping is very simple. Instead of always having to save result of a function and then insert the result as an argument into another function, you can make the whole workflow much smoother by telling R to immediately "pipe" on output into the subsequent function. We have already seen one example of a pipeline.
+
+There are two advantages of pipeline we will see especially later on. Firstly, you do not need to subset the data that are being piped. You just refer to the columns by their name as an object (so instead of calling metadata$judge_rapporteur, you simply use judge_rapporteur when subsetting the column). Secondly, the pipeline treats the columns as objects in themselves, thus there is no need to put them in quotation marks (like in the metadata['judge_rapporteur'] base R subsetting).
+
+Any pipe starts with the data. The data are then piped into a bunch of functions and the outcome is saved.
+
+``` {r pipeline}
+# just a general framework of piping
+
+# data = data |>
+#   function1() |>
+#   function2() |>
+#   function3()
+
+# without piping the code would look like
+
+# output1 = function1(data)
+# output2 = function2(output1)
+# output3 = function3(output2)
+
+# such a code contains a lot of so-called verbose. Verbose is when a code unnecessarily repeats itself and in general it's good to find ways to avoid it for the sake of clarity of your code.
+
+# Just a brief note. There is a way to avoid the data = data verbose with the magritrr %<>% "assignement pipe" operator, which takes the data as an argument to the first function and then saves the outcome under the same name (which replaces the starting data). While I think it's pretty neat, it's not a typical programmatical way even in languages that support piping. The code (using the tidyverse pipe) would look like this
+
+# data %<>% function1() |>
+#   function2() |>
+#   function3()
+
+```
+### Subsetting with tidyverse
+As a brief preface, tidyverse is centered around working with data.frame (or rather tibble, the tidyverse improvement of data.frame). It is made to work with tabular data (in comparison to simple list) so all the functions work with the concepts such as rows or columns.
+
+We have already learned some basic principles of subsetting in base R. Most of the tasks get much simpler with tidyverse. There are two main functions in tidyverse that handle subsetting: *filter()* and *select* . Filter() is used for filtering rows, select() for selecting columns.
+
+**A short remark on conditions**
+Some functions are based on evaluating a condition (if...else to name an example). Filter is no exception. Conditions are statements that are evaluated to TRUE/FALSE output, if the condition is met (or not). The conditions contain two sides and a logical operator between them (is x equal to y, is x higher than y). The filter function evaluates a condition and outputs the rows for which the condition evaluation outputs TRUE.
+
+``` {r filter_select}
+# You can filter rows with the filter() function. The filtering is then done based on logical expression. Logical expressions contain two statements that are evaluated against each other. The row is subsetted if the condition is met, otherwise it's not kept.
+
+# I get rid of unnecessary columns of the metadata df with the select function. To get rid of the columns instead of keeping them, I used the negation operator "!", which told R to select all columns that are not in the vector of objects.
+
+metadata = metadata |>
+  select(!c(concerned_body, concerned_constitutional_acts, concerned_body, subject_proceedings, field_register, url_adress, popular_name, length_proceedings, formation))
+
+# An example of filter pipeline that yields the case decided by either of the two judges
+metadata |>
+  filter(judge_rapporteur == "Šimáčková Kateřina" | judge_rapporteur == "Ludvík David")
+```
+
+**Exercise2**
+Try to replace the # with a logical operator that achieves what is suggested by the comment. Look up logical operators in R and try to guess the correct one.
+
+``` {r exercise2, eval = FALSE}
+
+
+# Filter decisions between dates "2022-01-01" and "2020-01-01". Just a hint, the dates need to be put in quotation marks, despite being stored as numeric.
+
+metadata |>
+  filter(date_decision # "2022-01-01" # date_decision # "2020-01-01")
+
+# Filter decisions whose outcome is not "granted" (i.e., the applicant lost)
+metadata |>
+  filter(outcome #)
+
+# Filter decisions decided by the plenum formation decide after year 2013.
+metadata |>
+  filter()
+
+# Explain why the following filter returns empty result
+metadata |>
+  filter(judge_rapporteur == "Šimáčková Kateřina" & judge_rapporteur == "Ludvík David")
+```
+
+*Important note*
+Some of you may have noticed the difference between putting a couple of characters between quotation marks and not. If you put a string (a bunch of characters) in quotation marks, you are creating a character type vector. If you do not put bunch of characters into quotation marks, R will look for an object of that name (this activity is called scoping). In the previous chunk of code, the columns are treated as objects (they are vectors with the column name as their name, which are bunched up into a data.frame). Thus, you access them by calling them their object name without quotations marks.
+
+## Data transformation with tidyverse
+
+Tidyverse allows for very efficient and powerful data transformations with three main functions:
+
+(1) group_by() divides the data into groups based on a condition and then applies all the subsequent modifications on the groups separately,
+(2) summarise() applies a certain function and "flattens" the outcome (i.e., summarise changes the structure of the output in comparison to the input) into a new data.frame
+(3) mutate() also applies a function but returns the same output as the input by adding a new column to the input.
+
+Both the summarise() and mutate() functions have similar syntax. You call it in the pipeline and then within the function you specify the name of the new column (either added to the old input in mutate or created in the new data.frame) followed by =, where you tell R which value should be there (for example by reference to another column of data.frame - a reference to an object without quotation marks, not to a character name).
+
+**Example 1**
+Let's find out how does the number of cases that are lodged to the CC develop over time. Firstly, it's good to figure out beforehand how you want the output to look like to decide whether one will use summarise() or mutate. In our case, we will want a data.frame, in which each row is a year and there are two columns: one which contains the information, which year it was, and the other which contains the number of cases submitted to the CCC in that year. Thus, because the structure is changing in comparison to the input (where each row is an individual case), we will opt for the summarise() function.
+
+``` {r transformation_example1}
+# 
+caseload = metadata |>
+  filter(year_decision < 2022) |> #Exclude the unfinished years
+  group_by(year_decision) |> # We want to group the data by years and then compute the number of cases within each year
+  summarise(n_cases = n()) #The n() function calculates the number of observations in each group
+
+# Let's quickly summarise the output
+caseload |> ggplot(mapping = aes(x = year_decision, y = n_cases)) +
+  geom_col()
+
+# We see that the number of cases is steadily on the rise. Already based on this graph we could conclude that there may be a need for a reform of the CC, whose organization hasn't changed since 1993 (the number of judges), but it must decide a lot more cases each year.
+```
+Imagine we are interested in finding out whether different chambers of the CCC decide differently. For that we firstly need to include the information on which panel decided each case, which isn't included in the basic dataset. However, I know that the case_id contains such an information (the roman number I, II, III, IV or Pl. mean either the first, second, third, fourth chamber or the whole plenum decided the case). As such we can create a new column for each case which transform the information contained in the case_id into just an information on the formation of the court.
+
+``` {r transformation_example2}
+# The grepl function takes the first argument and searches it in the second argument. In other words, it returns TRUE if it finds the first string in the text of the second argument, which here refers to the doc_id column in the data.frame. The case_when function transforms the select row based on the condition into what follows after the ~ . Here then I mutate the data.frame by creating a new column which contains a value Plenum, when the doc_id column contains the :Pl:, First Chamber when it contains "1:US:" etc. 
+metadata = metadata |>
+  mutate(formation = case_when(
+    grepl(":Pl:" , doc_id) ~ "Plenum",
+    grepl(":1:US:", doc_id) ~ "First Chamber",
+    grepl(":2:US:", doc_id) ~ "Second Chamber",
+    grepl(":3:US:", doc_id) ~ "Third Chamber",
+    grepl(":4:US:", doc_id) ~ "Fourth Chamber"
+  ))
+```
+**Exercise 3**
+Create a new column "length_proceedings" which calculates the length of the proceedings in days for each case. We've already worked with dates the previous lesson so you can consult the previous RMarkdown. Now instead of for loops, we will achieve the same result with the tidy functions.
+
+**Exercise 4**
+Imagine we want to find out how 'productive' is each judge. For that purpose, create a table, in which each row is each judge, and there is a column that contains: the average days it takes the judge to decide a case as a judge_rapporteur, the average number of cases decided each year as a judge_rapporteur.
+
+**Exercise 5**
+Let's try to find out how lenient each chamber is. Try to calculate the average winning chances (i.e., the percent of cases that have outcome "granted") before each chamber each year. Firstly, filter the data so that they contain cases submitted after 2013 
+
+*{hint: the most efficient way to calculate frequency (percent) is to combine first summarise to get number of observations in each group and then mutate it into percent}*
+
+We will now quickly cover two short but important topic: joining and pivoting.
+
+## Joining
+Usually, it's not a good idea to store too many data in one file. They then take too long to load and require a lot of RAM when loaded in R (the size of the file roughly corresponds to the RAM requirements, so if you have an 8 Gb file loaded, it will take up ~ 8 Gb of your RAM).
+
+That is why it's better to split up the whole data into multiple tables. Each table then contains certain ID column(s) that allow you to join them back together if you need information from multiple tables at hand. Such an approach is called relational database and is often taken care of by special query languages (SQL being the most popular) but you can achieve the same with R.
+
+For this purpose, there is the _join family of functions. It basically takes two tables and merges them together based on one or more columns. The most popular is the left_join(), which takes 2 data.frames as argument and "glues" the right one to the left one so that for example if the left argument data.frame contains more rows than the right one, R will automatically multiply the rows to fit the left data.frame.
+
+[The tidyverse comes with graphical cheatsheets, which make the transformations very clear](https://www.rstudio.com/wp-content/uploads/2015/02/data-wrangling-cheatsheet.pdf)
+
+**Example 1**
+Here I will take the original dissent data.frame. It contains the information on the doc_id as well as on the judge that dissented. The data is stored in a long format, thus, if a case contains more dissents, they will take up that amount of rows rather than one.
+
+Let's say I am interested in finding out whether certain characteristic of a judge can predict whether they dissent or not (say the older the judge, the less likely to enter a heated debate and whether there is also gender difference). I store the information on judges in a separate data.frame. I will now select the columns I think are relevant and join the two data.frames together.
+
+*The . Symbol*
+When piping, it may sometimes be unclear in a pipeline what data are being piped. For that the *.* becomes handy. If you are unsure which argument of a function will the data being piped end up with, you can specify it with the *argument_name = .* syntax. Typically, the _join family requires two data.frame arguments and it may not be clear which one the data piped will end up in. In such a case it's usually good practice to make it explicit with the "."
+
+``` {r left_join}
+dissents = readRDS("../data/US_dissents.rds")
+judges = readRDS("../data/US_judges.rds")
+
+dissenting_judges = judges |> # Here we start the pipe with judges because we will start with selecting only the relevant columns of judges
+  select(judge_id, gender, yob) |>
+  left_join(x = dissents, y = ., by = judge_id) # Here we are taking dissents as the left data.frame and thus if we didn't use the "." (as in left_join(dissents)), R would read the piped data.frame as the left data frame.
+```
+The "by=" argument specifies by which argument will the data.frames be joined. By default R looks for columns with the same name so if there are such columns, you can skip the argument. It can also occur that the columns are named differently (for example the name of the judge in the judges df is stored as "judge_name", whereas the judge name in the dissents df is stored as "dissenting_judge". Then you would write "by = dissenting_judge == judge_name". However, it's a good practice to create ID columns that are somehow abstract and by which you can uniquely identify each observation.
+
+**Exercise 6**
+Try to substantively figure out which of the metadata columns could be useful in predicting the dissenting behavior (try to guess it by the column names), then select those columns and add them to the dissenting_judges df (which will now contain information both on the judges as well as on the cases themselves)
+ 
+## Pivoting
+The last important concept of tidyverse data transformation is pivoting. There are two types of storing data: the wide and the long format. For any statistical/visual analysis, R pretty much requires the long format. Thus it may not so rarely occur that you need to trasnform a wide dataset into a long dataset.
+
+The dissents dataset is by default tidy - each observation has a row (here the observation is the information on whether a judge dissented in any given case), where one case can take multiple rows if more judges dissent in such a row. With some effort I pivoted the long dataset into wide format, where each case has a single row and each judge a single column. 0 indicates no dissent from the judge in the given case, 1 indicates teh opposite. 
+
+While on the first glance, sometimes this format may be easier to read, it's not practical. Any regression, machine learning, ggplot visualisation always requires the long format.
+
+``` {r pivot}
+dissents = readRDS("../data/US_dissents.rds")
+
+pivoted_dissents = dissents |> 
+  pivot_wider(names_from = dissenting_judge, values_from = judge_id) |> 
+  mutate_all(~replace(., is.na(.), 0)) |>
+mutate_all(~replace(., . != 0, 1))
+```
+
+**Exercise 7**
+Thus, tidyverse comes with two pivot functions - one to pivot long and one to pivot wide. Again, the cheatsheet comes in handy. As the final exercise, pivot the pivoted_dissents back into a long format using the pivot_longer() function (read the instructions with ?pivot_longer())
+
+### Solutions
+Will be added later on.
