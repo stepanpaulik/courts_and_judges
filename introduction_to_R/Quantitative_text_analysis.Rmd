@@ -163,8 +163,14 @@ to_remove = tibble(
     "article", "court", "paragraph", "judgment", "case",
     "proceedings", "apeal", "application",
     "directive", "regulation", "law",
-    "member", "state", "states", "commission", "european", "union"
+    "member", "state", "states", "commission", "european", "union", "eu", "eu:c"
   )
+)
+
+# Add the typical english stop words
+to_remove = bind_rows(
+  get_stopwords() %>% select(word),
+  to_remove
 )
 # Quanteda
 quanteda_corpus = text_corpus %>%
@@ -282,19 +288,18 @@ LDA contains one hyperparameter: the number of topics.
 
 
 # number of topics
-K = 22
+K = 10
 
 # set random number generator seed
 set.seed(9161)
 
 # compute the LDA model, inference via 1000 iterations of Gibbs sampling
 cjeu_topic_model = textmodel_lda(CJEU_dfm, K)
-save(cjeu_topic_model, file = "models/cjeu_topic_model.RData")
-load("models/topic_model_2.RData")
+# saveRDS(cjeu_topic_model, file = "../data/cjeu_topic_model.rds")
+cjeu_topic_model = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/cjeu_topic_model.rds"))
 
 # List 20 terms that define each topic
 terms(cjeu_topic_model, n = 20)
-
 ```
 #### Scaling
 
