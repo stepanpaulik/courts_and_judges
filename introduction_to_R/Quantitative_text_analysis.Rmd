@@ -1,0 +1,27 @@
+---
+title: "Quantitative_text_analysis_1"
+author: "Štěpán Paulík"
+date: "2023-06-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+# install.packages("tidyverse")
+library(tidyverse)
+
+# Load data dynamically from a github page (should've done this earlier)
+load(url("https://github.com/jfjelstul/law-and-courts-workshop/raw/master/data/text_corpus.RData"))
+```
+
+We are again working with a RMarkdown file so I hope by now you are familiar with it :) I also figured out a way how to load data directly from Github so there is no more need to hassle with the working directoy. Just run the first chunk and you'll be fine.
+
+Today we will be working with multiple various datasets (in Czech, English and German too). The German data are courtesy to [Sean Fobbe](https://zenodo.org/record/5514083), the English to [Joshua Fjelstul](https://github.com/jfjelstul/law-and-courts-workshop/tree/master) and the Czech obviously to me :). 
+
+## Regular expressions
+Regular 
+
+
+**Exercise 1**
+Look into the NSS data.frame. There you will find one column with the name of the lawyer representing a party before the Czech Supreme Administrative Court, including their title, and information whether the case was granted or not. As a first step, try to split the first column into one that contains only the name of the lawyer and one that contains their title and then transform the title into simple binary 1/0 if the titles contain PhD or don't. Lastly, build a simple bivariate model (hint: it's a classification problem so we're not sticking to linear regression) that ascertains the influence of the PhD on your lawyers' winning.
+
