@@ -7,21 +7,320 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = FALSE)
+# Install packages
 # install.packages("tidyverse")
+# install.packages("lubridate")
+# install.packages("tidytext")
+# install.packages("quanteda")
+# install.packages("quanteda.textstats")
+# install.packages("quanteda.textmodels")
+# install.packages("ldatuning")
+# install.packages("seededlda")
+
+
+
+# Load packages
 library(tidyverse)
+library(lubridate)
+library(tidytext)
+library(quanteda)
+library(quanteda.textstats)
+library(quanteda.textmodels)
+library(ldatuning)
+library(seededlda)
+
 
 # Load data dynamically from a github page (should've done this earlier)
-load(url("https://github.com/jfjelstul/law-and-courts-workshop/raw/master/data/text_corpus.RData"))
+load(url("https://github.com/jfjelstul/law-and-courts-workshop/raw/master/data/text_corpus.RData")) %>% as_tibble()
+bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds")) %>% as_tibble()
 ```
 
 We are again working with a RMarkdown file so I hope by now you are familiar with it :) I also figured out a way how to load data directly from Github so there is no more need to hassle with the working directoy. Just run the first chunk and you'll be fine.
 
 Today we will be working with multiple various datasets (in Czech, English and German too). The German data are courtesy to [Sean Fobbe](https://zenodo.org/record/5514083), the English to [Joshua Fjelstul](https://github.com/jfjelstul/law-and-courts-workshop/tree/master) and the Czech obviously to me :). 
 
-## Regular expressions
-Regular 
+## Natural Language Processing / Quantitative Text Analysis
+My dataset of Czech apex court decisions has roughly 300 000 decisions including their text. For my research work, it would be impossible to analyse all of them manually. But it's not impossible to use the help of computers. There are countless ways to process text on large scale that also depend on what you want to achieve (data mining, classification...), some are very simple (like regular expressions), other require incredible amount of computing power (large language models like ChatGPT). Quantitative text analysis serves to achieve exactly that purpose.
 
+There are multiple assumptions that need to be met in order for the quantitative approaches to work:
+
+(1) The content of the text (words, sentences) reveals a meaning that we're interested in quantitatively analysing (i.e., it's hard to process something that's not in the text - purpose...)
+(2) There must be a way to represent the text in a way that a computer can process it (tokens, lemmas, n-grams, document feature matrix, vectors etc.)
+(3) A lot of algorithms are based around relative distribution of words capturing some meaningful variation in something (whether it's proximity in meaning, topics etc.) but not all do or some try to overcome this assumption.
+
+The tasks that you can achieve with quantitative text analysis often comprise of the following purposes:
+
+(1) Frequency analysis (how common is some occurance)
+(2) Similarity (are words, paragraphs, documents similar)
+(3) Scale (find a, say, left-right scale based on speeches in Parliament)
+(4) Classification (inference about belonging of an element to certain class - classify a structure of a judicial decision)
+(5) Generation (just see the incredible advances in generative AI... hard to imagine use for research though)
+
+Machine learning may be used for all of them - take input on data, learn to recognize the patterns and then apply them mostly to classify/scale/find similarity previously unseen data.
+
+(1) Supervised - the researcher/developer pre-defines some characteristics/rules/labels of the training data - the recent "buzzwords" are support vector machines (SVM), random forests, gradient boosted trees... but also basic stuff such as regression.
+(2) Unsupervised - the machine learning model tries to learn the patterns without assistance  - Latent Dirichlet Allocation (LDA) or Structured Topic Models (STM) for topic modelling, Wordfish for scaling speeches
+
+In the following sections, we will delve into:
+
+(1) Regular Expressions
+(2) Topic Modelling with LDA
+(3) Scaling with Wordfish
+(4) ... and most interestingly to the supervised classification algorithms (SVM, random forests and xgboosted trees)
+
+## Regular expressions
+We will now start with the simplest form of processing text, regular expressions ("RegEx"). RegEx allow you to search for patterns in text that you know are there. In more specific terms, we have a RegEx pattern to search for in any given string (or multiple strings). We can then match (*str_detect()*, which returns TRUE/FALSE if it finds the pattern in the string), remove (*str_remove()*), or extract (*str_extract()*) the patterns we search.
+
+The advantage of RegEx is that it is computationally very cheap (doesn't demand a lot of computational power/time) and simple to use. The disadvantage is that it requires high level of regularity of the information you are looking for.
+
+For the starts, you can match the pattern literally.
+``` {r regex_simple} 
+string = "courts and judges"
+string %>%
+  str_extract(pattern = "courts")
+
+string %>%
+  str_detect(pattern = "duck")
+```
+
+However, that's most of the time not very useful. Imagine you want to match a bunch of names. We know names consist of two words, both of which start with a capital letter. RegEx allows you to generalize such demands.
+
+[A-Z] stand for capital letters, [a-z] for non-capital letters, [0-9] stands for numbers (digit), /s for space etc. For the complete list consult the assigned chapter.
+
+``` {r regex_name}
+# Run the first
+wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold Schwarzenegger is an american actor"))
+
+# And then run this and try to understand what just happened
+wiki = string %>%
+  mutate(
+    name = wiki_text %>%
+      str_extract(pattern = "[A-Z][a-z]+\\s[A-Z][a-z]+")
+  )
+```
+
+I made use of the so called quantifiers with the *+* symbol. They allow you to tell the RegEx how many times will a certain preceding expression repeat. 
+
+* means zero or more
++ means one or more
+? means zero or one
+{n,m} can be used as a range between n and m occurrences.
+
+The quantifiers allow us to deal with more irregularities. Imagine the following text, where the last name is not in the same for as the first two. How do we deal with that? Replace the *#* with the quantifiers that will catch all the names (a hint is that each of the three quantifiers is used exactly once).
+
+``` {r regex_name_exercise, eval = FALSE}
+# Run the first
+wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold Schwarzenegger is an american actor", "D. Trump is a former US president"))
+
+# And then run this and try to understand what just happened
+wiki = wiki %>%
+  mutate(
+    name = wiki_text %>%
+      str_extract(pattern = "[A-Z]\\.#[a-z]#\\s[A-Z][a-z]#")
+  )
+```
+There is so much you can do with regex that we can't cover here. But as always programming is best taught via problem solving problems you yourself are interested in overcoming rather than lecture style teaching.
 
 **Exercise 1**
+Take the following chunk of text and try to extract the name of the judge rapporteur (in fact the author of the decision). Read all three excerpts carefully, try to see which pattern you can use to "anchor" the name of the judge rapporteur extraction and try to translate it into a regex pattern.
+
+``` {r exercise_1}
+# This is the data you will be working with
+judge_rapporteur = text_corpus %>%
+  select(ecli, text) %>%
+  filter(str_detect(text, "^composed of")) %>%
+  as_tibble() %>%
+  slice_tail(n = 3)
+
+# Your code goes here
+```
+
+**Exercise 2**
 Look into the NSS data.frame. There you will find one column with the name of the lawyer representing a party before the Czech Supreme Administrative Court, including their title, and information whether the case was granted or not. As a first step, try to split the first column into one that contains only the name of the lawyer and one that contains their title and then transform the title into simple binary 1/0 if the titles contain PhD or don't. Lastly, build a simple bivariate model (hint: it's a classification problem so we're not sticking to linear regression) that ascertains the influence of the PhD on your lawyers' winning.
+
+``` {r exercise_2}
+
+
+```
+
+## Onto fancier stuff - Machine Learning
+
+### Topic modeling and scaling
+
+####
+Topic modeling has started to play quite an important role in quantitative text analysis. In literary science, you can for example track the development of certain topics over time, in the social science topic modeling can be used to reduce bias in any inquiry (to ensure that you compare effect of something across similar type of texts).
+
+The usual starting algorithm is Latent Dirichlet Allocation. It is based on the assumption that words are not equally distributed across topics (and so are the other topic modeling and scaling algorithms).
+
+To this end, all these algorithms require that the data be processed in the form of a document-term/feature matrix. You can imagine it as a table, where one axis shows words [technically referred to as terms or features], the other documents (in our case court decisions), and the cells are filled out by the number of occurances of the word in the document. There are multiple ways to construct the dfm, we will try out the quanteda package and tidytext package
+
+``` {r dfm}
+# Creating a dtm/dfm multiple ways---
+
+# Stop words - they are words that you think carry little to zero meaning in terms of distinguishing topics from each other
+to_remove = tibble(
+  word = c(
+    "article", "court", "paragraph", "judgment", "case",
+    "proceedings", "apeal", "application",
+    "directive", "regulation", "law",
+    "member", "state", "states", "commission", "european", "union"
+  )
+)
+# Quanteda
+quanteda_corpus = text_corpus %>%
+  select(ecli, text) %>% 
+  group_by(ecli) %>%
+  summarise(text = paste(text, collapse = " ")) %>%
+  corpus(
+  docid_field = "ecli",
+  text_field = "text"
+)
+
+CJEU_dfm = tokens(quanteda_corpus, remove_punct = TRUE, remove_symbols = TRUE, remove_numbers = TRUE) %>% 
+  tokens_select(pattern = to_remove$word, valuetype = "regex", selection = "remove", min_nchar=2L) %>%   dfm() %>% 
+  dfm_trim(min_termfreq = 5)
+
+# The tidy text way
+# Create tidy text corpus
+tidy_text_corpus = text_corpus %>%
+  group_by(ecli) %>%
+  unnest_tokens(
+    output = "word",
+    input = text,
+    token = "words",
+    to_lower = TRUE
+  )
+
+# Remove stop words, short words, numbers, and words with punctuation
+tidy_text_corpus = tidy_text_corpus %>%
+  anti_join(
+    get_stopwords(),
+    by = "word"
+  ) %>%
+  filter(
+    !str_detect(word, "[0-9]")
+  ) %>%
+  filter(
+    str_length(word) >= 2
+  ) %>%
+  filter(
+    !str_detect(word, "[[:punct:]]")
+  )
+
+# Remove words
+tidy_text_corpus = tidy_text_corpus %>%
+  anti_join(
+    to_remove,
+    by = "word"
+  )
+
+# Plot frequency by rank
+# Zipf's law: A word's frequency is inversely proporational to its rank.
+# The word at rank n appears 1/n times as often as the most frequent one.
+plot <- tidy_text_corpus |>
+  group_by(word) |>
+  summarize(count = n()) |>
+  arrange(desc(count)) |>
+  ungroup() |>
+  mutate(
+    rank = row_number(),
+    frequency = count / sum(count)
+  ) |>
+  ggplot() +
+  geom_line(aes(x = rank, y = frequency), size = 1, color = "#3498db") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = "Zipf's law for CJEU judgments",
+    x = "Rank",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+
+# Document feature matrix ------------------------------------------------------
+
+# Create a dfm
+CJEU_dfm_tidy = tidy_text_corpus %>%
+  group_by(word, ecli) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  cast_dfm(
+    document = ecli,
+    term = word,
+    value = count
+  )
+
+# Check the dimensions
+dim(CJEU_dfm_tidy)
+
+# Trim the DF
+CJEU_dfm_tidy_trimmed = CJEU_dfm_tidy %>%
+  dfm_trim(min_termfreq = 5)
+
+# Check the dimensions
+dim(CJEU_dfm_tidy_trimmed)
+dim(CJEU_dfm)
+```
+
+Now onto LDA. LDA is an example of so-called parametric models. Parametric models are such models that require an input of a parameter that somehow controls the learning process. There are two kinds:
+(1) Hyperparameters that are tuned by the researcher and do not flow from the process of training on data.
+(2) Parameters which the model learns during the process of training.
+
+LDA contains one hyperparameter: the number of topics. 
+
+```{r LDA}
+# hyperparameter = ldatuning::FindTopicsNumber(
+#   CJEU_dfm,
+#   topics = seq(from = 14, to = 22, by = 2),
+#   metrics = c("CaoJuan2009",  "Deveaud2014"),
+#   method = "Gibbs",
+#   control = list(seed = 77),
+#   verbose = TRUE
+# )
+# 
+# FindTopicsNumber_plot(hyperparameter)
+
+
+# number of topics
+K = 22
+
+# set random number generator seed
+set.seed(9161)
+
+# compute the LDA model, inference via 1000 iterations of Gibbs sampling
+cjeu_topic_model = textmodel_lda(CJEU_dfm, K)
+save(cjeu_topic_model, file = "models/cjeu_topic_model.RData")
+load("models/topic_model_2.RData")
+
+# List 20 terms that define each topic
+terms(cjeu_topic_model, n = 20)
+
+```
+#### Scaling
+
+### Solutions
+
+
+``` {r solutions}
+# Regex
+# Run the first
+wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold Schwarzenegger is an american actor", "D. Trump is a former US president"))
+
+# And then run this and try to understand what just happened
+wiki = wiki %>%
+  mutate(
+    name = wiki_text %>%
+      str_extract(pattern = "[A-Z]\\.?[a-z]*\\s[A-Z][a-z]+")
+  )
+
+# Exercise 1
+ judge_rapporteur = judge_rapporteur %>% 
+  mutate(
+    judge_rapporteur = text |>
+      str_extract("[A-Z]\\. [[:alpha:]]+ \\(Rapporteur\\)") |>
+      str_remove("\\([Rr]apporteur\\)") |>
+      str_remove("^[A-Z]\\.") |>
+      str_squish()
+  )
+```
 
