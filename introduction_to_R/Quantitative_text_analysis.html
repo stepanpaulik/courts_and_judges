@@ -503,7 +503,7 @@ NSS_df %&gt;%
   geom_density(aes(x = ability, group = phd, color = phd))
 
 # The model
-logit &lt;- glm(outcome ~ phd, data = NSS_df, family = &quot;binomial&quot;)
+logit = glm(outcome ~ phd, data = NSS_df, family = &quot;binomial&quot;)
 
 plot(logit)</code></pre>
 <div id="text-normalization-udpipe" class="section level3">
@@ -678,25 +678,30 @@ tidy_text_corpus = tidy_text_corpus %&gt;%
     by = &quot;word&quot;
   )
 
-# Plot frequency by rank
-# Zipf&#39;s law: A word&#39;s frequency is inversely proporational to its rank.
-# The word at rank n appears 1/n times as often as the most frequent one.
-plot &lt;- tidy_text_corpus |&gt;
-  group_by(word) |&gt;
-  summarize(count = n()) |&gt;
-  arrange(desc(count)) |&gt;
-  ungroup() |&gt;
+# Frequency analysis
+counts = tidy_text_corpus %&gt;%
+  group_by(word) %&gt;%
+  summarize(count = n()) %&gt;%
+  arrange(desc(count))
+
+# Plot most frequent words
+plot = tidy_text_corpus %&gt;%
+  group_by(word) %&gt;%
+  summarize(count = n()) %&gt;%
+  arrange(desc(count)) %&gt;%
+  slice_head(n = 25) %&gt;%
   mutate(
-    rank = row_number(),
-    frequency = count / sum(count)
-  ) |&gt;
+    word = word %&gt;%
+      factor() %&gt;%
+      fct_reorder(count)
+  ) %&gt;%
   ggplot() +
-  geom_line(aes(x = rank, y = frequency), size = 1, color = &quot;#3498db&quot;) +
-  scale_x_log10() +
-  scale_y_log10() +
+  geom_bar(aes(x = word, y = count), stat = &quot;identity&quot;, color = &quot;black&quot;, fill = &quot;gray90&quot;, width = 0.7) +
+  scale_y_continuous(breaks = seq(0, 30000, 5000), expand = expansion(mult = c(0, 0.1))) +
+  coord_flip() +
   labs(
-    title = &quot;Zipf&#39;s law for CJEU judgments&quot;,
-    x = &quot;Rank&quot;,
+    title = &quot;Most frequent words in CJEU judgments (2019-2021)&quot;,
+    x = NULL,
     y = &quot;Frequency&quot;
   ) +
   theme_minimal()
@@ -750,8 +755,8 @@ K = 10
 set.seed(9161)
 
 # compute the LDA model, inference via 1000 iterations of Gibbs sampling
-cjeu_topic_model = textmodel_lda(CJEU_dfm, K)
-# saveRDS(cjeu_topic_model, file = &quot;../data/cjeu_topic_model.rds&quot;)
+cjeu_topic_model = textmodel_lda(CJEU_dfm_tidy_trimmed, K)
+saveRDS(cjeu_topic_model, file = &quot;../data/cjeu_topic_model.rds&quot;)
 cjeu_topic_model = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/cjeu_topic_model.rds&quot;))
 
 # List 20 terms that define each topic
@@ -798,6 +803,132 @@ issues. Namely, it uses known metadata about the documents to correct
 for the simple reliance on word distribution across topics. You can read
 more about <a href="https://towardsdatascience.com/introduction-to-the-structural-topic-model-stm-34ec4bd5383">here</a>.</p>
 </div>
+</div>
+<div id="scaling" class="section level2">
+<h2>Scaling</h2>
+<p>Just a brief peek into the Wordfish model primarily developed for
+scaling political speeches. The code was copied from Joshua Fjelstul as
+I don’t usually work with the Wordfish model</p>
+<pre class="r"><code># Wordfish model ---------------------------------------------------------------
+
+# Estimate model
+wordfish_model = textmodel_wordfish(CJEU_dfm_tidy_trimmed)
+saveRDS(wordfish_model, file = &quot;../data/wordfish_model.rds&quot;)
+wordfish_model = readRDS(url(&quot;&quot;))
+
+# Create the judge_rapporteurs df
+judge_rapporteurs &lt;- text_corpus %&gt;%
+  filter(str_detect(text, &quot;^composed of&quot;)) %&gt;%
+  mutate(
+    judge_rapporteur = text %&gt;%
+      str_extract(&quot;[A-Z](\\.)? [[:alpha:]&#39; ]+(, President of the Chamber)?,? *\\([Rr]apporteure?\\)&quot;) %&gt;%
+      str_remove(&quot;\\([Rr]apporteure?\\)&quot;) %&gt;%
+      str_remove(&quot;, President of the Chamber&quot;) %&gt;%
+      str_remove(&quot;^[A-Z](\\.)?&quot;) %&gt;%
+      str_remove(&quot;,&quot;) %&gt;%
+      str_squish()
+  )
+
+# There are 4 parameters
+# theta = estimated document positions
+# beta = estimated word positions
+# alpha = estimated document fixed effect (some documents are just longer than others)
+# psi = estimated word fixed effect (some words are just more common)
+
+## Interpret word estimates ----------------------------------------------------
+
+# List of procedure-oriented words
+procedural_words = c(
+  &quot;appeal&quot;, &quot;appellant&quot;, &quot;unsuccessful&quot;, &quot;error&quot;, &quot;plea&quot;, &quot;pleas&quot;, &quot;unfounded&quot;,
+  &quot;erred&quot;, &quot;annulment&quot;, &quot;infringement&quot;, &quot;arguments&quot;, &quot;alleging&quot;
+)
+
+# List of policy-oriented words
+policy_words = c(
+  &quot;worker&quot;, &quot;workers&quot;, &quot;social&quot;, &quot;pension&quot;, &quot;taxation&quot;, &quot;income&quot;, &quot;credit&quot;,
+  &quot;employ&quot;, &quot;contract&quot;, &quot;person&quot;, &quot;work&quot;, &quot;tax&quot;, &quot;service&quot;, &quot;insurance&quot;,
+  &quot;consumer&quot;, &quot;employee&quot;, &quot;citizen&quot;, &quot;passenger&quot;, &quot;passengers&quot;, &quot;loan&quot;,
+  &quot;family&quot;, &quot;child&quot;, &quot;residence&quot;
+)
+
+# Make a tibble with the word parameters
+word_estimates = tibble(
+  word = colnames(CJEU_dfm_tidy_trimmed),
+  position = wordfish_model$beta,
+  fixed_effect = wordfish_model$psi,
+)
+
+# Word type
+word_estimates = word_estimates %&gt;%
+  mutate(
+    word_type = case_when(
+      word %in% procedural_words ~ &quot;Procedural word&quot;,
+      word %in% policy_words ~ &quot;Policy word&quot;,
+      TRUE ~ &quot;Other&quot;
+    ),
+    word_type = factor(
+      word_type,
+      levels = c(&quot;Policy word&quot;, &quot;Procedural word&quot;, &quot;Other&quot;)
+    )
+  )
+
+# We can graph these to interpret the latent dimension
+ggplot(word_estimates, aes(x = position, y = fixed_effect, label = word, color = word_type, size = word_type)) +
+  geom_text(alpha = 0.7) +
+  geom_vline(xintercept = 0, size = 0.5, linetype = &quot;dashed&quot;) +
+  scale_x_continuous(limits = c(-3, 3), breaks = seq(-3, 3, 1)) +
+  scale_y_continuous(limits = c(-3, 3), breaks = seq(-3, 3, 1)) +
+  scale_color_manual(values = c(&quot;#3498db&quot;, &quot;#2ecc71&quot;, &quot;gray80&quot;), name = NULL) +
+  scale_size_manual(values = c(4, 4, 2.5), guide = &quot;none&quot;) +
+  ggtitle(&quot;Wordfish estimates for the positions of words in CJEU judgments (2019-2021)&quot;) +
+  ylab(&quot;Fixed effect&quot;) +
+  xlab(&quot;Word position&quot;) +
+  theme_minimal()
+
+## Interpret document estimates ------------------------------------------------
+
+# Create a table of document estimates
+document_estimates = tibble(
+  ecli = wordfish_model$docs,
+  position = wordfish_model$theta
+)
+
+# Merge in judge rapporteur
+document_estimates = document_estimates %&gt;%
+  left_join(
+    judge_rapporteurs %&gt;%
+      select(
+        ecli, judge_rapporteur
+      ),
+    by = &quot;ecli&quot;
+  )
+
+# Collapse by judge
+judge_estimates = document_estimates %&gt;%
+  group_by(judge_rapporteur) %&gt;%
+  summarize(
+    position = mean(position),
+    count = n()
+  ) %&gt;%
+  ungroup() %&gt;%
+  mutate(
+    judge_rapporteur = judge_rapporteur %&gt;%
+      factor() %&gt;%
+      fct_reorder(position)
+  ) %&gt;%
+  filter(
+    count &gt;= 10
+  )
+
+# Plot average positions by judge-rapporteur
+ggplot(judge_estimates, aes(x = position, y = judge_rapporteur, size = count)) +
+  geom_point(color = &quot;#3498db&quot;) +
+  geom_vline(xintercept = 0, size = 0.5, linetype = &quot;dashed&quot;) +
+  scale_size_continuous(range = c(1, 4), name = &quot;Number of judgments&quot;) +
+  ggtitle(&quot;Wordfish estimates for the positions CJEU judges (2019-2021)&quot;) +
+  ylab(NULL) +
+  xlab(&quot;Average judge-rapporteur position&quot;) +
+  theme_minimal()</code></pre>
 <div id="solutions" class="section level3">
 <h3>Solutions</h3>
 <pre class="r"><code># Regex
@@ -814,10 +945,10 @@ wiki = wiki %&gt;%
 # Exercise 1
  judge_rapporteur = judge_rapporteur %&gt;% 
   mutate(
-    judge_rapporteur = text |&gt;
-      str_extract(&quot;[A-Z]\\. [[:alpha:]]+ \\(Rapporteur\\)&quot;) |&gt;
-      str_remove(&quot;\\([Rr]apporteur\\)&quot;) |&gt;
-      str_remove(&quot;^[A-Z]\\.&quot;) |&gt;
+    judge_rapporteur = text %&gt;%
+      str_extract(&quot;[A-Z]\\. [[:alpha:]]+ \\(Rapporteur\\)&quot;) %&gt;%
+      str_remove(&quot;\\([Rr]apporteur\\)&quot;) %&gt;%
+      str_remove(&quot;^[A-Z]\\.&quot;) %&gt;%
       str_squish()
   )</code></pre>
 </div>

@@ -78,7 +78,7 @@ NSS_df %>%
 # Your transformation code goes here
 
 # The model
-logit <- glm(outcome ~ phd, data = NSS_df, family = "binomial")
+logit = glm(outcome ~ phd, data = NSS_df, family = "binomial")
 
 plot(logit)
 
@@ -123,6 +123,7 @@ to_remove = bind_rows(
   get_stopwords() %>% select(word),
   to_remove
 )
+
 # Quanteda
 quanteda_corpus = text_corpus %>%
   select(ecli, text) %>% 
@@ -171,29 +172,33 @@ tidy_text_corpus = tidy_text_corpus %>%
     by = "word"
   )
 
-# Plot frequency by rank
-# Zipf's law: A word's frequency is inversely proporational to its rank.
-# The word at rank n appears 1/n times as often as the most frequent one.
-plot <- tidy_text_corpus |>
-  group_by(word) |>
-  summarize(count = n()) |>
-  arrange(desc(count)) |>
-  ungroup() |>
+# Frequency analysis
+counts = tidy_text_corpus %>%
+  group_by(word) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count))
+
+# Plot most frequent words
+plot = tidy_text_corpus %>%
+  group_by(word) %>%
+  summarize(count = n()) %>%
+  arrange(desc(count)) %>%
+  slice_head(n = 25) %>%
   mutate(
-    rank = row_number(),
-    frequency = count / sum(count)
-  ) |>
+    word = word %>%
+      factor() %>%
+      fct_reorder(count)
+  ) %>%
   ggplot() +
-  geom_line(aes(x = rank, y = frequency), size = 1, color = "#3498db") +
-  scale_x_log10() +
-  scale_y_log10() +
+  geom_bar(aes(x = word, y = count), stat = "identity", color = "black", fill = "gray90", width = 0.7) +
+  scale_y_continuous(breaks = seq(0, 30000, 5000), expand = expansion(mult = c(0, 0.1))) +
+  coord_flip() +
   labs(
-    title = "Zipf's law for CJEU judgments",
-    x = "Rank",
+    title = "Most frequent words in CJEU judgments (2019-2021)",
+    x = NULL,
     y = "Frequency"
   ) +
   theme_minimal()
-
 # Document feature matrix ------------------------------------------------------
 
 # Create a dfm
@@ -238,8 +243,8 @@ K = 10
 set.seed(9161)
 
 # compute the LDA model, inference via 1000 iterations of Gibbs sampling
-cjeu_topic_model = textmodel_lda(CJEU_dfm, K)
-# saveRDS(cjeu_topic_model, file = "../data/cjeu_topic_model.rds")
+cjeu_topic_model = textmodel_lda(CJEU_dfm_tidy_trimmed, K)
+saveRDS(cjeu_topic_model, file = "../data/cjeu_topic_model.rds")
 cjeu_topic_model = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/cjeu_topic_model.rds"))
 
 # List 20 terms that define each topic
@@ -290,9 +295,9 @@ wiki = wiki %>%
 # Exercise 1
 judge_rapporteur = judge_rapporteur %>% 
   mutate(
-    judge_rapporteur = text |>
-      str_extract("[A-Z]\\. [[:alpha:]]+ \\(Rapporteur\\)") |>
-      str_remove("\\([Rr]apporteur\\)") |>
-      str_remove("^[A-Z]\\.") |>
+    judge_rapporteur = text %>%
+      str_extract("[A-Z]\\. [[:alpha:]]+ \\(Rapporteur\\)") %>%
+      str_remove("\\([Rr]apporteur\\)") %>%
+      str_remove("^[A-Z]\\.") %>%
       str_squish()
   )
