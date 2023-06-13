@@ -56,11 +56,6 @@ The tasks that you can achieve with quantitative text analysis often comprise of
 (4) Classification (inference about belonging of an element to certain class - classify a structure of a judicial decision)
 (5) Generation (just see the incredible advances in generative AI... hard to imagine use for research though)
 
-Machine learning may be used for all of them - take input on data, learn to recognize the patterns and then apply them mostly to classify/scale/find similarity previously unseen data.
-
-(1) Supervised - the researcher/developer pre-defines some characteristics/rules/labels of the training data - the recent "buzzwords" are support vector machines (SVM), random forests, gradient boosted trees... but also basic stuff such as regression.
-(2) Unsupervised - the machine learning model tries to learn the patterns without assistance  - Latent Dirichlet Allocation (LDA) or Structured Topic Models (STM) for topic modelling, Wordfish for scaling speeches
-
 In the following sections, we will delve into:
 
 (1) Regular Expressions
@@ -136,18 +131,24 @@ judge_rapporteur = text_corpus %>%
 ```
 
 **Exercise 2**
-Look into the NSS data.frame. There you will find one column with the name of the lawyer representing a party before the Czech Supreme Administrative Court, including their title, and information whether the case was granted or not. As a first step, try to split the first column into one that contains only the name of the lawyer and one that contains their title and then transform the title into simple binary 1/0 if the titles contain PhD or don't. Lastly, build a simple bivariate model (hint: it's a classification problem so we're not sticking to linear regression) that ascertains the influence of the PhD on your lawyers' winning.
+Look into the NSS_lawyers data.frame. There you will find one column with the name of the lawyer representing a party before the Czech Supreme Administrative Court, including their title, and information whether the case was granted or not. As a first step, try to split the first column into one that contains only the name of the lawyer and one that contains their title and then transform the title into simple binary 1/0 if the titles contain PhD or don't. Lastly, build a simple bivariate model (hint: it's a classification problem so we're not sticking to linear regression) that ascertains the influence of the PhD on your lawyers' winning chances.
 
 ``` {r exercise_2}
-
+NSS_df = readRDS(url(""))
 
 ```
 
 ## Onto fancier stuff - Machine Learning
+Machine learning may be used for all of them - take input on data, learn to recognize the patterns and then apply them mostly to classify/scale/find similarity previously unseen data.
+
+(1) Supervised - the researcher/developer pre-defines some characteristics/rules/labels of the training data - the recent "buzzwords" are support vector machines (SVM), random forests, gradient boosted trees... but also basic stuff such as regression.
+(2) Unsupervised - the machine learning model tries to learn the patterns without assistance  - Latent Dirichlet Allocation (LDA) or Structured Topic Models (STM) for topic modelling, Wordfish for scaling speeches. 
+
+There are also two types of models:
+(1) Parametrized, which contain one or more hyperparameter(s) that needs to be determined before training the model on training data
+(2) Non-parametrized models, which also contain parameters that are determined by the machine learning algorithm during the training process.
 
 ### Topic modeling and scaling
-
-####
 Topic modeling has started to play quite an important role in quantitative text analysis. In literary science, you can for example track the development of certain topics over time, in the social science topic modeling can be used to reduce bias in any inquiry (to ensure that you compare effect of something across similar type of texts).
 
 The usual starting algorithm is Latent Dirichlet Allocation. It is based on the assumption that words are not equally distributed across topics (and so are the other topic modeling and scaling algorithms).
@@ -300,6 +301,24 @@ cjeu_topic_model = readRDS(url("https://github.com/stepanpaulik/courts_and_judge
 
 # List 20 terms that define each topic
 terms(cjeu_topic_model, n = 20)
+
+# How the NSS dataset was generated
+# Random prep for courts_and_judges
+NSS_df = NSS_metadata %>%
+  filter(type_decision == "Rozsudek") %>%
+  mutate(outcome = case_when(
+    grepl("zrušeno", type_verdict) ~ "granted",
+    .default = "rejected"
+  ),
+  outcome = factor(outcome),
+  phd = case_when(
+    grepl("Ph.D.", lawyer) ~ TRUE,
+    .default = FALSE)) %>%
+  select(c(doc_id, lawyer, outcome, phd)) %>%
+  group_by(phd) %>%
+  mutate(ability = rnorm(n(), mean = phd + 4, sd = 1)) %>%
+  ungroup() %>%
+  drop_na()
 ```
 #### Scaling
 
