@@ -402,19 +402,6 @@ class - classify a structure of a judicial decision)</li>
 <li>Generation (just see the incredible advances in generative AI… hard
 to imagine use for research though)</li>
 </ol>
-<p>Machine learning may be used for all of them - take input on data,
-learn to recognize the patterns and then apply them mostly to
-classify/scale/find similarity previously unseen data.</p>
-<ol style="list-style-type: decimal">
-<li>Supervised - the researcher/developer pre-defines some
-characteristics/rules/labels of the training data - the recent
-“buzzwords” are support vector machines (SVM), random forests, gradient
-boosted trees… but also basic stuff such as regression.</li>
-<li>Unsupervised - the machine learning model tries to learn the
-patterns without assistance - Latent Dirichlet Allocation (LDA) or
-Structured Topic Models (STM) for topic modelling, Wordfish for scaling
-speeches</li>
-</ol>
 <p>In the following sections, we will delve into:</p>
 <ol style="list-style-type: decimal">
 <li>Regular Expressions</li>
@@ -499,23 +486,49 @@ judge_rapporteur = text_corpus %&gt;%
   slice_tail(n = 3)
 
 # Your code goes here</code></pre>
-<p><strong>Exercise 2</strong> Look into the NSS data.frame. There you
-will find one column with the name of the lawyer representing a party
-before the Czech Supreme Administrative Court, including their title,
-and information whether the case was granted or not. As a first step,
-try to split the first column into one that contains only the name of
-the lawyer and one that contains their title and then transform the
+<p><strong>Exercise 2</strong> Look into the NSS_lawyers data.frame.
+There you will find one column with the name of the lawyer representing
+a party before the Czech Supreme Administrative Court, including their
+title, and information whether the case was granted or not. As a first
+step, try to split the first column into one that contains only the name
+of the lawyer and one that contains their title and then transform the
 title into simple binary 1/0 if the titles contain PhD or don’t. Lastly,
-build a simple bivariate model (hint: it’s a classification problem so
-we’re not sticking to linear regression) that ascertains the influence
-of the PhD on your lawyers’ winning.</p>
+build a simple binomial logit model that ascertains the influence of the
+PhD on your lawyers’ winning chances. If you are feeling</p>
+<pre class="r"><code>NSS_df = readRDS(url(&quot;&quot;))
+
+# Check the ability distribution
+NSS_df %&gt;% 
+  ggplot() +
+  geom_density(aes(x = ability, group = phd, color = phd))
+
+# The model
+logit &lt;- glm(outcome ~ phd, data = NSS_df, family = &quot;binomial&quot;)
+
+plot(logit)</code></pre>
 </div>
 <div id="onto-fancier-stuff---machine-learning" class="section level2">
 <h2>Onto fancier stuff - Machine Learning</h2>
+<p>Machine learning may be used for all of them - take input on data,
+learn to recognize the patterns and then apply them mostly to
+classify/scale/find similarity previously unseen data.</p>
+<ol style="list-style-type: decimal">
+<li>Supervised - the researcher/developer pre-defines some
+characteristics/rules/labels of the training data - the recent
+“buzzwords” are support vector machines (SVM), random forests, gradient
+boosted trees… but also basic stuff such as regression.</li>
+<li>Unsupervised - the machine learning model tries to learn the
+patterns without assistance - Latent Dirichlet Allocation (LDA) or
+Structured Topic Models (STM) for topic modelling, Wordfish for scaling
+speeches.</li>
+</ol>
+<p>There are also two types of models: (1) Parametrized, which contain
+one or more hyperparameter(s) that needs to be determined before
+training the model on training data (2) Non-parametrized models, which
+also contain parameters that are determined by the machine learning
+algorithm during the training process.</p>
 <div id="topic-modeling-and-scaling" class="section level3">
 <h3>Topic modeling and scaling</h3>
-<div id="section" class="section level4">
-<h4></h4>
 <p>Topic modeling has started to play quite an important role in
 quantitative text analysis. In literary science, you can for example
 track the development of certain topics over time, in the social science
@@ -539,8 +552,14 @@ to_remove = tibble(
     &quot;article&quot;, &quot;court&quot;, &quot;paragraph&quot;, &quot;judgment&quot;, &quot;case&quot;,
     &quot;proceedings&quot;, &quot;apeal&quot;, &quot;application&quot;,
     &quot;directive&quot;, &quot;regulation&quot;, &quot;law&quot;,
-    &quot;member&quot;, &quot;state&quot;, &quot;states&quot;, &quot;commission&quot;, &quot;european&quot;, &quot;union&quot;
+    &quot;member&quot;, &quot;state&quot;, &quot;states&quot;, &quot;commission&quot;, &quot;european&quot;, &quot;union&quot;, &quot;eu&quot;, &quot;eu:c&quot;
   )
+)
+
+# Add the typical english stop words
+to_remove = bind_rows(
+  get_stopwords() %&gt;% select(word),
+  to_remove
 )
 # Quanteda
 quanteda_corpus = text_corpus %&gt;%
@@ -590,6 +609,29 @@ tidy_text_corpus = tidy_text_corpus %&gt;%
     by = &quot;word&quot;
   )
 
+# Plot frequency by rank
+# Zipf&#39;s law: A word&#39;s frequency is inversely proporational to its rank.
+# The word at rank n appears 1/n times as often as the most frequent one.
+plot &lt;- tidy_text_corpus |&gt;
+  group_by(word) |&gt;
+  summarize(count = n()) |&gt;
+  arrange(desc(count)) |&gt;
+  ungroup() |&gt;
+  mutate(
+    rank = row_number(),
+    frequency = count / sum(count)
+  ) |&gt;
+  ggplot() +
+  geom_line(aes(x = rank, y = frequency), size = 1, color = &quot;#3498db&quot;) +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(
+    title = &quot;Zipf&#39;s law for CJEU judgments&quot;,
+    x = &quot;Rank&quot;,
+    y = &quot;Frequency&quot;
+  ) +
+  theme_minimal()
+
 # Document feature matrix ------------------------------------------------------
 
 # Create a dfm
@@ -633,17 +675,41 @@ during the process of training.</p>
 
 
 # number of topics
-K = 22L
+K = 10
 
 # set random number generator seed
 set.seed(9161)
 
 # compute the LDA model, inference via 1000 iterations of Gibbs sampling
 cjeu_topic_model = textmodel_lda(CJEU_dfm, K)
+# saveRDS(cjeu_topic_model, file = &quot;../data/cjeu_topic_model.rds&quot;)
+cjeu_topic_model = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/cjeu_topic_model.rds&quot;))
 
 # List 20 terms that define each topic
-terms(cjeu_topic_model, n = 20)</code></pre>
-</div>
+terms(cjeu_topic_model, n = 20)
+
+# How the NSS dataset was generated
+# Random prep for courts_and_judges
+NSS_df = NSS_metadata %&gt;%
+  filter(type_decision == &quot;Rozsudek&quot;) %&gt;%
+  mutate(outcome = case_when(
+    grepl(&quot;zrušeno&quot;, type_verdict) ~ &quot;granted&quot;,
+    .default = &quot;rejected&quot;
+  ),
+  outcome = factor(outcome),
+  phd = case_when(
+    grepl(&quot;Ph.D.&quot;, lawyer) ~ TRUE,
+    .default = FALSE)) %&gt;%
+  select(c(doc_id, lawyer, outcome, phd)) %&gt;%
+  group_by(phd) %&gt;%
+  mutate(ability = rnorm(n(), mean = phd + 4, sd = 1)) %&gt;%
+  ungroup() %&gt;%
+  drop_na()
+
+# Check the ability distribution
+NSS_df %&gt;% 
+  ggplot() +
+  geom_density(aes(x = ability, group = phd, color = phd))</code></pre>
 <div id="scaling" class="section level4">
 <h4>Scaling</h4>
 </div>
