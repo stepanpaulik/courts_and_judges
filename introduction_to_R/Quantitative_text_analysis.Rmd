@@ -170,7 +170,7 @@ Typically, if we consider a "word" (or a token) as the unit of our analysis, we 
 ``` {r udpipe}
 bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds")) %>% 
   as_tibble() %>%
-  slice_head(n = 500)
+  slice_head(n = 100)
 
 # Download the language model and determine the number of cores used for the process
 n.cores = detectCores() - 2
@@ -180,13 +180,17 @@ ud_model = udpipe_load_model(ud_model$file_model)
 # Parallesized
 start = Sys.time()
 bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = n.cores) %>%
-  as_tibble()
+  as_tibble() %>% 
+  select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
+  select()
+  
 end = Sys.time()
 
 # Sequential
 start = Sys.time()
-bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model) %>%
-  as_tibble()
+bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = 1) %>%
+  as_tibble() %>%
+  select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
 end = Sys.time()
 ```
 
