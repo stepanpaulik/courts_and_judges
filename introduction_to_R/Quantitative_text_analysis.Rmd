@@ -81,9 +81,9 @@ string %>%
   str_detect(pattern = "duck")
 ```
 
-However, that's most of the time not very useful. Imagine you want to match a bunch of names. We know names consist of two words, both of which start with a capital letter. RegEx allows you to generalize such demands.
+However, that's most of the time not very useful. Imagine you want to match a bunch of names. We know names consist of two words, both of which start with a upper-case letter. RegEx allows you to generalize such demands.
 
-[A-Z] stand for capital letters, [a-z] for non-capital letters, [0-9] stands for numbers (digit), /s for space etc. For the complete list consult the assigned chapter.
+[A-Z] stand for upper-case letters, [a-z] for lower-case letters, [0-9] stands for numbers (digit), /s for space etc. For the complete list consult the assigned chapter.
 
 ``` {r regex_name}
 # Run the first
