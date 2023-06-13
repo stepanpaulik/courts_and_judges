@@ -104,8 +104,10 @@ I made use of the so called quantifiers with the *+* symbol. They allow you to t
 ? means zero or one
 {n,m} can be used as a range between n and m occurrences.
 
-The quantifiers allow us to deal with more irregularities. Imagine the following text, where the last name is not in the same for as the first two. How do we deal with that? Replace the *#* with the quantifiers that will catch all the names (a hint is that each of the three quantifiers is used exactly once).
+The quantifiers allow us to deal with more irregularities. Imagine the following text, where the last name is not in the same for as the first two. How do we deal with that? 
 
+*Exercise 1*
+Replace the *#* with the quantifiers that will catch all the names (a hint is that each of the three quantifiers is used exactly once).
 ``` {r regex_name_exercise, eval = FALSE}
 # Run the first
 wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold Schwarzenegger is an american actor", "D. Trump is a former US president"))
