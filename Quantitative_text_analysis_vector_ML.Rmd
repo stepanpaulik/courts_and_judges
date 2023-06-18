@@ -7,6 +7,10 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = TRUE)
+
+library(skimr)
+library(tidymodels)
+library(tidyverse)
 ```
 
 ## Overview
@@ -56,7 +60,7 @@ We will now apply the whole process on my example data. The data are hand annota
 
 ##### Create the recipe
 ``` {r tidymodels}
-
+data = readRDS("../data/judgments_annotated_doc2vec.rds")
 
 
 ```
