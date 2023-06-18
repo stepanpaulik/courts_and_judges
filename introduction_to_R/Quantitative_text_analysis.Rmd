@@ -72,25 +72,26 @@ We will now start with the simplest form of processing text, regular expressions
 The advantage of RegEx is that it is computationally very cheap (doesn't demand a lot of computational power/time) and simple to use. The disadvantage is that it requires high level of regularity of the information you are looking for.
 
 For the starts, you can match the pattern literally.
+
 ``` {r regex_simple} 
 string = "courts and judges"
 string %>%
   str_extract(pattern = "courts")
 
 string %>%
-  str_detect(pattern = "duck")
+  str_detect(pattern = "and")
 ```
 
 However, that's most of the time not very useful. Imagine you want to match a bunch of names. We know names consist of two words, both of which start with a upper-case letter. RegEx allows you to generalize such demands.
 
-[A-Z] stand for upper-case letters, [a-z] for lowerę-case letters, [0-9] stands for numbers (digit), /s for space etc. For the complete list consult the assigned chapter.
+[A-Z] stand for upper-case letters, [a-z] for lower-case letters, [0-9] stands for numbers (digit), /s for space etc. For the complete list consult the assigned chapter.
 
 ``` {r regex_name}
 # Run the first
 wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold Schwarzenegger is an american actor"))
 
 # And then run this and try to understand what just happened
-wiki = string %>%
+wiki = wiki %>%
   mutate(
     name = wiki_text %>%
       str_extract(pattern = "[A-Z][a-z]+\\s[A-Z][a-z]+")
@@ -116,7 +117,7 @@ wiki = data.frame(wiki_text = c("Lee Epstein is a political scientist", "Arnold 
 wiki = wiki %>%
   mutate(
     name = wiki_text %>%
-      str_extract(pattern = "[A-Z]\\.#[a-z]#\\s[A-Z][a-z]#")
+      str_extract(pattern = "[A-Z]\\.?[a-z]*\\s[A-Z][a-z]+")
   )
 ```
 There is so much you can do with regex that we can't cover here. But as always programming is best taught via problem solving problems you yourself are interested in overcoming rather than lecture style teaching.
@@ -133,6 +134,8 @@ judge_rapporteur = text_corpus %>%
   slice_tail(n = 3)
 
 # Your code goes here
+judge_rapporteur = judge_rapporteur %>%
+  
 ```
 
 **Exercise 3**
@@ -184,8 +187,6 @@ start = Sys.time()
 bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = n.cores) %>%
   as_tibble() %>% 
   select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
-  select()
-  
 end = Sys.time()
 
 # Sequential
@@ -212,7 +213,7 @@ Topic modeling has started to play quite an important role in quantitative text 
 
 The usual starting algorithm is Latent Dirichlet Allocation. It is based on the assumption that words are not equally distributed across topics (and so are the other topic modeling and scaling algorithms).
 
-To this end, all these algorithms require that the data be processed in the form of a document-term/feature matrix. You can imagine it as a table, where one axis shows words [technically referred to as terms or features], the other documents (in our case court decisions), and the cells are filled out by the number of occurances of the word in the document. There are multiple ways to construct the dfm, we will try out the quanteda package and tidytext package
+To this end, all these algorithms require that the data be processed in the form of a document-term/feature matrix. You can imagine it as a table, where one axis shows words [technically referred to as terms or features], the other documents (in our case court decisions), and the cells are filled out by the number of occurances of the word in the document. There are multiple ways to construct the dfm, we will try out the quanteda package and tidytext package.
 
 ``` {r dfm}
 # Creating a dtm/dfm multiple ways---

@@ -430,19 +430,19 @@ string %&gt;%
   str_extract(pattern = &quot;courts&quot;)
 
 string %&gt;%
-  str_detect(pattern = &quot;duck&quot;)</code></pre>
+  str_detect(pattern = &quot;and&quot;)</code></pre>
 <p>However, that’s most of the time not very useful. Imagine you want to
 match a bunch of names. We know names consist of two words, both of
 which start with a upper-case letter. RegEx allows you to generalize
 such demands.</p>
-<p>[A-Z] stand for upper-case letters, [a-z] for lowerę-case letters,
+<p>[A-Z] stand for upper-case letters, [a-z] for lower-case letters,
 [0-9] stands for numbers (digit), /s for space etc. For the complete
 list consult the assigned chapter.</p>
 <pre class="r"><code># Run the first
 wiki = data.frame(wiki_text = c(&quot;Lee Epstein is a political scientist&quot;, &quot;Arnold Schwarzenegger is an american actor&quot;))
 
 # And then run this and try to understand what just happened
-wiki = string %&gt;%
+wiki = wiki %&gt;%
   mutate(
     name = wiki_text %&gt;%
       str_extract(pattern = &quot;[A-Z][a-z]+\\s[A-Z][a-z]+&quot;)
@@ -457,9 +457,10 @@ between n and m occurrences.</li>
 </ul>
 <p>The quantifiers allow us to deal with more irregularities. Imagine
 the following text, where the last name is not in the same for as the
-first two. How do we deal with that? Replace the <em>#</em> with the
-quantifiers that will catch all the names (a hint is that each of the
-three quantifiers is used exactly once).</p>
+first two. How do we deal with that?</p>
+<p><em>Exercise 1</em> Replace the <em>#</em> with the quantifiers that
+will catch all the names (a hint is that each of the three quantifiers
+is used exactly once).</p>
 <pre class="r"><code># Run the first
 wiki = data.frame(wiki_text = c(&quot;Lee Epstein is a political scientist&quot;, &quot;Arnold Schwarzenegger is an american actor&quot;, &quot;D. Trump is a former US president&quot;))
 
@@ -467,7 +468,7 @@ wiki = data.frame(wiki_text = c(&quot;Lee Epstein is a political scientist&quot;
 wiki = wiki %&gt;%
   mutate(
     name = wiki_text %&gt;%
-      str_extract(pattern = &quot;[A-Z]\\.#[a-z]#\\s[A-Z][a-z]#&quot;)
+      str_extract(pattern = &quot;[A-Z]\\.?[a-z]*\\s[A-Z][a-z]+&quot;)
   )</code></pre>
 <p>There is so much you can do with regex that we can’t cover here. But
 as always programming is best taught via problem solving problems you
@@ -485,7 +486,8 @@ judge_rapporteur = text_corpus %&gt;%
   as_tibble() %&gt;%
   slice_tail(n = 3)
 
-# Your code goes here</code></pre>
+# Your code goes here
+judge_rapporteur = judge_rapporteur %&gt;%</code></pre>
 <p><strong>Exercise 3</strong> Look into the NSS_lawyers data.frame.
 There you will find one column with the name of the lawyer representing
 a party before the Czech Supreme Administrative Court, including their
