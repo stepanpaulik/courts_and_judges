@@ -1,4 +1,12 @@
-data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds")) %>% drop_na()
+library(skimr)
+library(tidymodels)
+library(tidyverse)
+
+data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds")) %>% 
+  drop_na() %>%
+  mutate(successful = as.character(successful)) %>%
+  mutate(across(where(is.character), as.factor))
+
 # Familiarise yourself with the data
 skim(data)
 view(data)
@@ -12,10 +20,11 @@ test_data  = testing(data_split)
 folds = vfold_cv(train_data, v = 6)
 
 # Not all features of this data set are helpful, determine which ones would you like to go in in your formula
-rec = recipe(successful ~ #, data = train_data) %>% 
-  update_role(#, new_role = "ID") %>%
-  update_role(#, new_role = "outcome") %>% 
-  update_role(all_predictors(), new_role = "predictor")
+rec = recipe(successful ~ ., data = train_data) %>% 
+  update_role(iuropa_decision_id, new_role = "ID") %>%
+  update_role(successful, new_role = "outcome") %>% 
+  update_role(all_predictors(), new_role = "predictor") %>%
+  step_unknown()
 rec
 
 mod_tune = rand_forest(
@@ -50,11 +59,31 @@ fit_tune %>%
   facet_wrap(~parameter, scales = "free_x") +
   labs(x = NULL, y = "AUC")
 
+rf_grid <- grid_regular(
+  mtry(range = c(10, 20)),
+  min_n(range = c(2, 8)),
+  levels = 5
+)
+
+regular_res <- tune_grid(
+  wfl_tune,
+  resamples = folds,
+  grid = rf_grid
+)
+
 best_auc <- select_best(regular_res, "roc_auc")
 
 final_rf <- finalize_model(
-  tune_spec,
+  mod_tune,
   best_auc
 )
 
-final_rf
+final_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(final_rf)
+
+final_res <- final_wf %>%
+  last_fit(data_split)
+
+final_res %>%
+  collect_metrics()

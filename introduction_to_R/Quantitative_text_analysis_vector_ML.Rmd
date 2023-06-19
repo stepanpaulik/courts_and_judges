@@ -8,12 +8,14 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = FALSE)
 
-install.packages("kernlab", "xgboost", "tidymodels", "tidyverse", "skimr", "")
+# install.packages("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost")
 
 library(skimr)
 library(tidymodels)
 library(tidyverse)
 library(themis)
+library(udpipe)
+library(parallel)
 
 ```
 
@@ -27,10 +29,93 @@ Up until now, we have mainly focused on the import, tidying and transformation p
 
 However, that is hardly ever a goal in itself of data analysis. Whether it's in private sector or in university research, usually at least some form of visualization (even if of descriptive statistics) is a minimum. More often than not you need to process your data with a model, whether to infere something about a process or to make predictions.
 
+## Embeddings
+
+In order for the machine learning to work, we need a way to represent text. Last class, we have learned regular expression, which in a very regular way represent text. Today we will delve into the current golden standard for text representation: *embeddings*.
+
+``` {r embeddings_start}
+animals = tibble(name = c("dog", "spider", "elephant", "cat", "wolf", "lion"),
+                     size = c(3.2,1,9, 2.7, 6.5, 5.2),
+                     cuteness = c(5,2,8, 6, 6, 7))
+```
+
+We have just managed to represent 4 animals with 2 variables: size and cuteness. Of course they depend on my personal preferences, some of you may think that dogs are cuter than cats. But the tibble captures the idea of embeddings: we can capture a meaning of words in a numeric vector. 
+
+``` {r embeddings_plot}
+animals %>% ggplot(aes(x = size, y = cuteness, label = name)) +
+  geom_text()
+
+get_distance = function(animal1, animal2){
+  output = sqrt((animal1$size - animal2$size)**2 + (animal1$cuteness - animal2$cuteness)**2)
+  return(output)
+}
+
+get_distance(animals[animals$name == "dog",],animals[animals$name == "cat",])
+get_distance(animals[animals$name == "dog",],animals[animals$name == "elephant",])
+```
+Embeddings allow us to capture similarity between words in multiple ways. Firstly, they allow us to see which words out of our dataset are similar. We can calculate the similarity between two words by calculating their Euclidian distance (recall Pythagoras theorem from your high school).
+
+I created a function which calculates the distance between either two animals from our tiny dataset. We can see, as expected, that dog and cat are closer to each other than to elephant. Embeddings of words will hardly ever be squeezed into 2 dimensions, however, the idea of Euclidian distance applies equally to multidimensional spaces, only the formula gets more complex.
+
+Embeddings also allow us to ascertain analogous words. The idea of analogy is that of length and the angle between the words. From our graph, we can see that if we took the length and angle that goes from cat to lion and applied it to the dog, we would get a wolf. In other words, lions to cats are as wolves to dogs.
+
+And this is the basic logic behind embeddings: you represent words as numeric vectors, which allows you to ascertain which words are similar and which words are analogous. While there are alternative approaches to embeddings (bag-of-words for example), embeddings have dominated - the proof is that the Transformers algorithm behind ChatGPT also relies on embeddings as a starting point.
+
+### Word2vec
+Of course we cannot construct the dimensions ourselves. We need the help of computers to churn through large data. For that, a number of embedding algorithms has been developed. The word2vec was one of the first (still a very recent invention) and still remains quiet computationally cheap. It employs a neural network to build the vector representation of a text corpus.
+
+It also has a sibling *doc2vec*, which is suited for longer language features than words (sentences, paragraphs). We will now play around the word2vec in the context of the CJEU decisions. 
+
+``` {r word2vec}
+# Example code of how to create UDPipe file
+bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds")) %>% 
+  as_tibble()
+
+# Download the language model and determine the number of cores used for the process
+n.cores = detectCores() - 2
+ud_model = udpipe_download_model(language = "german")
+ud_model = udpipe_load_model(ud_model$file_model)
+
+# Parallesized
+start = Sys.time()
+bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = n.cores) %>%
+  as_tibble() %>% 
+  select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
+end = Sys.time()
+
+saveRDS(bvg_udpipe, "../data/bvg_text_corpus_udpipe.rds")
+
+# Read UDpipe
+bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds"))
+
+
+# Put the UDPipe back together
+glue_udpipe = function(data){
+   output = data %>%
+      group_by(doc_id) %>%
+      filter(
+        !str_detect(lemma, "[0-9]")
+      ) %>%
+      filter(upos != "PUNCT") %>%
+      summarise(text = paste(lemma, collapse = " ") %>% # Normalise and tidy the text
+                  str_to_lower() %>%
+                  str_squish())
+    return(output)
+}
+
+bvg_text_corpus_lemma = glue_udpipe(data = bvg_udpipe)
+```
+
+### Aditional material
+
+(1) (You can read more comprehensive but very understandable overview of embeddings here)[https://gist.github.com/aparrish/2f562e3737544cf29aaf1af30362f469]
+(2) (The word2vec description including the neural network behind can be found here)[https://arxiv.org/abs/1301.3781]
+(3) (For an overview of the current hot topic, Transformers, I'd recommend the quite advanced series starting here)[https://towardsdatascience.com/transformers-explained-visually-part-1-overview-of-functionality-95a6dd460452]
+
 ## Machine Learning
 
 ### Overview
-Machine learning algorithms build a model, i.e., learn certain patterns, on a training data and then apply the model to previously unseed data to make predictions.
+Machine learning algorithms build a model, i.e., learn certain patterns, on a training data and then apply the model to previously unseed data to make predictions. 
 
 Even the in social science omnipresent *linear regression* is a form of statistical model and machine learning algorithm, even if a pretty basic one (which is its advantage for social science: it makes it easily interpretable). Think of your inference about the intercepts in linear regression and your conclusion about casual inference as as the model's application to previously unseen data (i.e., you mostly train your linear regression only on a small sample to make conclusions about the whole population).
 
@@ -60,7 +145,7 @@ Before you train any model, you split your labeled data into training and testin
 
 #### Example from scratch - the Lee Epstein dissents research replicated on the Czech Constitutional Court
 
-We will now apply the whole process on my example data. The data are hand annotated 200 decisions of the constitutional court. 
+We will now apply the whole process on my example data. The data are hand annotated 200 decisions of the constitutional court. The texts of the decisions have then been split into paragraph level. The paragraphs have been then processed via a doc2vec algorithm trained on the whole text corpus of the CCC decisions. Thus, each row of the tibble represents one paragraph translated to doc2vec representation, with position encoding added.
 
 ##### Create the recipe
 ``` {r recipe}
@@ -283,7 +368,11 @@ We will for a moment pretend to be judges.
 
 ``` {r rand_forest}
 # Load the data without NA values
-data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds")) %>% drop_na()
+data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds")) %>% 
+  drop_na() %>%
+  mutate(successful = as.character(successful)) %>%
+  mutate(across(where(is.character), as.factor))
+
 # Familiarise yourself with the data
 skim(data)
 view(data)
@@ -304,9 +393,9 @@ rec = recipe(successful ~ #, data = train_data) %>%
 rec
 
 mod = rand_forest(
-  mtry = 
+  mtry = 10,
   trees = 1000, # This is not a hyperparameter but you can play around a little bit too and see how it impacts the results
-  min_n = 
+  min_n = 3
 ) %>%
   set_mode("classification") %>%
   set_engine("ranger")
@@ -323,7 +412,7 @@ rand_forest_fit = wflow %>%
 # Measuring the accuracy of the basic model with the augment function or predict, which requires further specifications and more actions
 rand_forest_aug = 
   augment(rand_forest_fit, test_data) %>% 
-  select(doc_id, class, .pred_class)
+  select(doc_id, successful, .pred_class)
 
 # Accuracy
 rand_forest_aug %>% 
@@ -332,4 +421,3 @@ rand_forest_aug %>%
 rand_forest_aug %>%
   conf_mat(truth = successful, .pred_class) # Self-explanatory
 ```
-## Vectorisation
