@@ -16,6 +16,7 @@ library(tidyverse)
 library(themis)
 library(udpipe)
 library(parallel)
+library(word2vec)
 
 ```
 
@@ -83,12 +84,6 @@ bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = n.c
   select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
 end = Sys.time()
 
-saveRDS(bvg_udpipe, "../data/bvg_text_corpus_udpipe.rds")
-
-# Read UDpipe
-bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds"))
-
-
 # Put the UDPipe back together
 glue_udpipe = function(data){
    output = data %>%
@@ -104,6 +99,24 @@ glue_udpipe = function(data){
 }
 
 bvg_text_corpus_lemma = glue_udpipe(data = bvg_udpipe)
+
+# Read the lemmatized text corpus
+bvg_text_corpus_lemma = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_lemma.rds"))
+
+# Create the word2vec model
+bvg_embeddings = word2vec(x = bvg_text_corpus_lemma$text, type = "cbow")
+
+# Get top_n of similar words to the listed words
+predict(bvg_embeddings, c("straftäter", "urteil"), type = "nearest", top_n = 5)
+emb
+
+# Get similarity of words
+emb = as.matrix(bvg_embeddings)
+x = emb[c("straf", "straftat", "senat"), ]
+word2vec_similarity(x, x)
+
+predict(bvg_embeddings, emb["straf",] - emb["entschädigung",] + emb["straftat",], type = "nearest", top_n = 5)
+
 ```
 
 ### Aditional material
