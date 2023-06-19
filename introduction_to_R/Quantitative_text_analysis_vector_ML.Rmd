@@ -1,0 +1,335 @@
+---
+title: "Quantitative_text_analysis_vector_ML"
+author: "Štěpán Paulík"
+date: "2023-06-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+
+install.packages("kernlab", "xgboost", "tidymodels", "tidyverse", "skimr", "")
+
+library(skimr)
+library(tidymodels)
+library(tidyverse)
+library(themis)
+
+```
+
+## Overview
+
+Today we will do a brief overview, or rather an introduction to, a potential usage of machine learning in social science/text data analysis. We have already briefly gone over the standard "data science" or data based research workflow, which looks like this: 
+
+![Standard datascience workflow](https://d33wubrfki0l68.cloudfront.net/795c039ba2520455d833b4034befc8cf360a70ba/558a5/diagrams/data-science-explore.png)
+
+Up until now, we have mainly focused on the import, tidying and transformation phases. We have imported data either locally through a relative path or via an internet URL (but there are countless ways including SQL database usage, loading from cloud services etc.), we have learned how what tidy data are and what are the step to reach them and last two weeks we have covered some basic data transformation tasks (the mutate() and summarise() functions, data mining from text via regex etc.).
+
+However, that is hardly ever a goal in itself of data analysis. Whether it's in private sector or in university research, usually at least some form of visualization (even if of descriptive statistics) is a minimum. More often than not you need to process your data with a model, whether to infere something about a process or to make predictions.
+
+## Machine Learning
+
+### Overview
+Machine learning algorithms build a model, i.e., learn certain patterns, on a training data and then apply the model to previously unseed data to make predictions.
+
+Even the in social science omnipresent *linear regression* is a form of statistical model and machine learning algorithm, even if a pretty basic one (which is its advantage for social science: it makes it easily interpretable). Think of your inference about the intercepts in linear regression and your conclusion about casual inference as as the model's application to previously unseen data (i.e., you mostly train your linear regression only on a small sample to make conclusions about the whole population).
+
+As we have already touched upon, there are two types of machine learning algorithms
+
+(1) unsupervised, where no labels/classes are given before the training, thus the algorithm discerns the structure/patterns on its own
+(2) supervised, where a researcher gives an input in the form of labelled/annotated data before hand, and the algorithm learns a method to structure the input to the desired output (labels, classes)
+
+The former form of ML is often used for exploratory data analysis (like the unsupervised topic modeling we have covered), whereas the latter can be used for classification, prediction, inference etc.
+### Supervised Machine Learning
+Today our main topic will be supervised machine learning. We will discuss the workflow in general with focus on *tidymodels*, the tidy syntax applied to machine learning modeling.
+
+For any model, you need to specify the formula (i.e., what is your class that you want to predict and what are the features used to predict that class), the model (today we will look at *random forests, support vector machines and gradient boosted trees*)
+
+Tidymodels, unlike the base R syntax or Python syntax, splits up the machine learning model into multiple chunks, which allows you to modulate them as you wish without having to rewrite the whole code. 
+
+Thus, the tidymodels workflow proceeds as follow:
+(1) You create a recipe, where you specify the formula as well as the role played by each function (i.e., whether it's the outcome class, ID for the observation or the predictor/feature)
+(2) You specify the model, which includes the model's engine, goal (classification or regression), and most importantly parameters
+(3) You create a workflow, where you merge these two together
+(4) You train the model on training data, tune the parameters, do diagnosis etc.
+(5) You apply it to previously unseen test data
+(6) You diagnose the model
+
+#### Training vs test data
+Before you train any model, you split your labeled data into training and testing data. You then train the model on the training data and run the various diagnoses on the test data. It is starting to become a good practice in research that not only the model but also the researcher does not see the test data before running the diagnosis.
+
+#### Example from scratch - the Lee Epstein dissents research replicated on the Czech Constitutional Court
+
+We will now apply the whole process on my example data. The data are hand annotated 200 decisions of the constitutional court. 
+
+##### Create the recipe
+``` {r recipe}
+
+# Load data
+data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/annotations_dissents.rds"))
+
+# Peak into the data
+glimpse(data) # What is important is that there is a column called "class", which contains a two-level factor: "dissent" and "not dissent" (remember that factors are stored as integers, not as character, you can verify that with the typeof() function)
+
+# Split the data into testing and training data
+data_split = initial_split(data, prop = 3/4)
+train_data = training(data_split)
+test_data  = testing(data_split)
+
+# Prepare data for k-fold cross-validation
+folds = vfold_cv(train_data, v = 6)
+
+# Create a recipe
+rec = recipe(class ~ ., data = train_data) %>%
+  update_role(all_double(), new_role = "predictor") %>%
+  update_role(doc_id, new_role = "ID") %>%
+  update_role(class, new_role = "outcome") %>%
+  step_smote(class) 
+rec
+```
+
+There is quite some stuff to unravel. We have a data frame, in which each row represents one paragraph in an annotated decisions. The data frame contains columns class, which we try to predict, then information about the start, end and length of the paragraph and an ID column.
+
+When we create the recipe, we proceed in a tidy fashion - it's a huge pipeline. The pipeline starts with the recipe() function, in which we specify the training data and formula. The formula here says that we are trying to predict the "class" outcome with all other columns (the dot symbol stands for "all the rest", but you could also specify specific variables).
+
+We then set roles for each column. The *class* column plays the role of outcome, the *doc_id* is an identifier, which we don't want used as a predictor, and lastly all the remainign columns (which we know are stored as double) are updated as predictors with the *all_double()* selector.
+
+**Class imbalance**
+The step_smote() function is one of many algorithms that oversample. When there is a large imbalance between classes, the algorithms have hard time predicting the minority classes. Most machine learning algorithms for classification predictive models are designed for problems that assume an equal distribution of classes. This means that a naive application of a model may focus on learning the characteristics of the more prevalent observations only, neglecting the examples from the minority class that is, in fact, of more interest to us (dissents) and whose predictions are more valuable.
+
+As we can see, there is around 23.6 % of dissent paragraphs, whereas 76.4 % of the rest, which is roughly 1:4 ratio. 
+
+
+``` {r imbalance}
+data %>%
+  group_by(class) %>%
+  summarise(N = n()) %>%
+  mutate(ratio = N/sum(N))
+```
+
+Put simply, with smaller datasets it's a good practice to oversample the minority class. SMOTE is the "OG" oversampling algorithm. From my testing, oversampling the dissent class improved the accuracy quite substantially.
+
+##### Determine the model
+
+Which model fits the required task and data depends on a lot of aspects: the researcher's knowledge of possible models, the data structure, the kind of classification (binomial, multinomial etc.), the amount of data etc. There are three "hot topic" classification algorithms. 
+
+(1) Support vector machines ([Read this for an overview](https://towardsdatascience.com/support-vector-machine-introduction-to-machine-learning-algorithms-934a444fca47)), which are the simplest out of the three but very efficient and fast. Their advantage is that they have only one hyperparameter to tune, thus, the tuning doesn't take too long (although that's relative). Their tidymodels function is *svm_linear()*.
+(2) Gradient boosted trees ([Read this for an overview](https://towardsdatascience.com/machine-learning-part-18-boosting-algorithms-gradient-boosting-in-python-ef5ae6965be4)), which in a way correspond to how a human may classify something: the algorithm creates "a decision tree", at the end of which it arrives to different classes. Their tidymodels function is *boost_tree()*
+(3) Random Forests ([Read this for an overview](https://towardsdatascience.com/understanding-random-forest-58381e0602d2)) aim to reduce bias of decision trees by combining *n* trees and then classifying based on their combination. They internalize the testing-training dataset splitting into folds with a technique called *bootstrapping* - each tree randomly samples with replacement from the dataset, thus, each tree is trained on different training data (!). Their tidymodels function is *rand_forest()*
+
+``` {r model}
+# TUNING - normally you would have to first tune the hyperparameters of the model, I will put the code here, however, we won't do it and we will just use the parameter that's result of my tuning at home
+
+# This creates a model object, in which you set the model specifications including the parameters with the tuned values or the engine of the model
+mod_tune = svm_linear(cost = tune()) %>%
+  set_engine("kernlab") %>%
+  set_mode("classification")
+mod_tune
+
+# FINAL model
+mod = svm_linear(cost = 0.01) %>% # The cost hyperparamter 
+  set_engine("kernlab") %>% # Different models have different engines, you can read all that in the documentation with the ?svm_linear command
+  set_mode("classification") # We are interested in classification and not regression because are outcome variable is a category variable
+mod
+```
+
+##### Create a worflow
+
+Now we bind the recipe and the model into a workflow. The advantage of tidymodels is that you can at any time change the model without changing the whole code - the preceding formula and data determination in the recipe and the subsequent application of the model and diagnosis will use the same code.
+
+``` {r workflow}
+# TUNING
+wflow_tune = workflow() %>%
+  add_model(mod_tune) %>%
+  add_recipe(rec)
+
+# FINAL wflow
+wflow = workflow() %>%
+  add_model(mod) %>%
+  add_recipe(rec)
+```
+
+##### Training the model
+We then first tune the model so that we determine the hyperparameter and then fit the model with that hyperparameter. You can either then fit the model with the finalize_fit() and the best hyperparamter values as an argument or you can input them in the model above and then just use the fit() function.
+``` {r training}
+# TUNING
+# Firstly we create a grid with the tuning parameters
+svm_tune = grid_regular(cost(), levels = 5)
+
+# We then tune the model with the tune_grid() function
+svm_tune = wflow_tune %>% 
+  tune_grid(resamples = folds, grid = svm_tune)
+
+# Using various yardstick functions we can see which model parameters are the best and we save them with select_best() function
+svm_tune %>% collect_metrics()
+svm_tune %>% show_best("accuracy")
+best_cost = svm_tune %>% select_best("accuracy")
+
+# Now we input the best parameters into the final workflow with the finalize_workflow() function
+svm_wflow_final = 
+  svm_wflow %>% 
+  finalize_workflow(best_cost)
+
+# Lastly, the model is both trained and then fitted to the testing data with the last_fit() function; this function fits the finalized model on the full training data set and evaluates the finalized model on the testing data.
+svm_fit_final = svm_wflow_final %>%
+  last_fit(data_split)
+
+# Final fit
+svm_fit_final = svm_wflow_final %>%
+  fit(train_data)
+
+# Diagnosis
+svm_fit_final %>% collect_metrics()
+
+svm_fit_final %>%
+  collect_predictions() %>% 
+  roc_curve(class, .pred_dissent) %>% 
+  autoplot()
+
+# FINAL
+# The fitting
+svm_fit = wflow %>% 
+  fit(data = train_data)
+
+# Testing the model fit on test data
+predict(svm_fit, test_data)
+```
+
+##### Diagnosis
+The last step in the model creation is the diagnosis. There are countless ways to diagnose a model: confusion matrix, accuracy, precision, recall, ROC curve etc. All of them build on the following concept:
+
+(a) true positive prediction is a prediction which was correctly classified as the positive class
+(b) false positive prediction is a prediction which was incorrectly classified as the negative class when in truth it's positive
+(c) true negative prediction is a prediction which was correctly classified as the negative class
+(d) false negative prediction is a prediction which was incorrectly classified as the positive class when in truth it's negative
+
+The examples of diagnostic measures are:
+
+(1) Confusion matrix has on the Y axis the predicted values and on the X axis the truth values and tells you which classes were truthfully predicted and which were confused with others
+(2) Precision is the ratio of true positive to true positive + false negative (i.e., how many out of all the positive predictions were truly positive)
+(3) Recall is the ratio of true positive to true positive + false positive (i.e., to all positive class observations in truth)
+(4) ROC curve plots the true positive rate and false positive rate
+
+``` {r diagnosis}
+# Measuring the accuracy of the basic model with the augment function or predict, which requires further specifications and more actions
+svm_aug = 
+  augment(svm_fit, test_data) %>% 
+  select(doc_id, class, .pred_class)
+
+# Accuracy
+svm_aug %>% 
+  accuracy(truth = class, .pred_class) # Accuracy is the proportion of the data that are predicted correctly.
+
+svm_aug %>%
+  conf_mat(truth = class, .pred_class) # Self-explanatory
+
+
+
+svm_fit_cv = wflow %>% 
+  fit_resamples(folds)
+svm_fit_cv
+collect_metrics(svm_fit_cv) # K-fold crossvalidation
+svm_fit_cv %>%
+  collect_predictions() %>%
+  roc_curve(truth = class, .pred_class)
+```
+
+
+##### Exercises
+
+*Exercise 1*
+In the example I gave you, we have tried to discern dissenting opinions and not dissenting opinions. However, I also built a dataset that discerns the structure of a court decision as such. You will now try to train a gradient boosted decision tree model on it. I would like you now to fill out the skeleton code below with details that would correspond to the new code. Let's see who gets the best accuracy at the end.
+
+``` {r xgboost}
+# Load data
+data_exercise = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/annotations_without_dissents.rds"))
+
+# Peak into the data
+glimpse(data_exercise) # Determine whether the classes are imbalanced so that you need a oversampling step
+  
+# Write a code that splits the data into training and testing data and creates folds for the cross-validation
+
+# RECIPE
+rec = recipe() %>% # Here you need to fill in the formula and the data arguments
+  update_role(all_double(), new_role = "predictor") %>%
+  update_role(doc_id, new_role = "ID") %>%
+  update_role(class, new_role = "outcome") # You can also add the oversampling command here if you think it's necessary
+rec
+
+# MODEL - look up the right function for gradient boosted tree and create the whole model pipeline (you can look above, it's almost the same, but you must include the model function, determine the engine and determine the mode). 
+
+# The tuned parameters for the model function are:
+ #  trees = 1000,
+ #  mtry = 17,
+ #  min_n = 16,
+ #  tree_depth = 13,
+ #  learn_rate = 0.00540844661792405,
+ #  loss_reduction = 3.41145754172432e-08,
+ #  sample_size = 0.545441143696662
+
+# WORKFLOW - time to merge your recipe and model into a workflow
+
+
+# FINAL FIT - fit the data both via cross-validation and then with the test data
+final_fit_cv = 
+final_fit = 
+
+# DIAGNOSIS - firstly diagnose the cross-validated fit, then try to get the accuracy and the confusion matrix out of the final fit
+```
+
+*Exercise 2*
+We will for a moment pretend to be judges. 
+
+
+``` {r rand_forest}
+# Load the data without NA values
+data = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds")) %>% drop_na()
+# Familiarise yourself with the data
+skim(data)
+view(data)
+
+# Split the data into testing and training data
+data_split = initial_split(data, prop = 3/4)
+train_data = training(data_split)
+test_data  = testing(data_split)
+
+# Prepare data for k-fold cross-validation
+folds = vfold_cv(train_data, v = 6)
+
+# Not all features of this data set are helpful, determine which ones would you like to go in in your formula
+rec = recipe(successful ~ #, data = train_data) %>% 
+  update_role(#, new_role = "ID") %>%
+  update_role(#, new_role = "outcome") %>% 
+  update_role(all_predictors(), new_role = "predictor")
+rec
+
+mod = rand_forest(
+  mtry = 
+  trees = 1000, # This is not a hyperparameter but you can play around a little bit too and see how it impacts the results
+  min_n = 
+) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+wflow = workflow() %>%
+  add_recipe(rec) %>%
+  add_model(mod)
+
+# The fitting
+rand_forest_fit = wflow %>% 
+  fit(data = train_data)
+
+# Diagnosis
+# Measuring the accuracy of the basic model with the augment function or predict, which requires further specifications and more actions
+rand_forest_aug = 
+  augment(rand_forest_fit, test_data) %>% 
+  select(doc_id, class, .pred_class)
+
+# Accuracy
+rand_forest_aug %>% 
+  accuracy(truth = successful, .pred_class) # Accuracy is the proportion of the data that are predicted correctly.
+
+rand_forest_aug %>%
+  conf_mat(truth = successful, .pred_class) # Self-explanatory
+```
+## Vectorisation
