@@ -46,7 +46,7 @@ We have just managed to represent 4 animals with 2 variables: size and cuteness.
 animals %>% ggplot(aes(x = size, y = cuteness, label = name)) +
   geom_text()
 
-get_distance = function(animal1, animal2){
+Íget_distance = function(animal1, animal2){
   output = sqrt((animal1$size - animal2$size)**2 + (animal1$cuteness - animal2$cuteness)**2)
   return(output)
 }
@@ -107,6 +107,8 @@ bvg_text_corpus_lemma = readRDS(url("https://github.com/stepanpaulik/courts_and_
 
 # Create the word2vec model
 bvg_embeddings = word2vec(x = bvg_text_corpus_lemma$text, type = "cbow")
+
+matrix = as.matrix(bvg_embeddings)
 
 # Get top_n of similar words to the listed words
 predict(bvg_embeddings, c("straftäter", "urteil"), type = "nearest", top_n = 5)
