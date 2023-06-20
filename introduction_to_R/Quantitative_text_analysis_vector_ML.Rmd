@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = FALSE)
 
-# install.packages("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost")
+# install.packages("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost", "word2vec", "parallel", "udpipe")
 
 library(skimr)
 library(tidymodels)
@@ -99,6 +99,8 @@ glue_udpipe = function(data){
 }
 
 bvg_text_corpus_lemma = glue_udpipe(data = bvg_udpipe)
+
+bvg_udpipe = readRDS(url('https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_udpipe.rds'))
 
 # Read the lemmatized text corpus
 bvg_text_corpus_lemma = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_lemma.rds"))
@@ -335,7 +337,7 @@ svm_fit_cv %>%
 
 ##### Exercises
 
-*Exercise 1*
+**Exercise 1**
 In the example I gave you, we have tried to discern dissenting opinions and not dissenting opinions. However, I also built a dataset that discerns the structure of a court decision as such. You will now try to train a gradient boosted decision tree model on it. I would like you now to fill out the skeleton code below with details that would correspond to the new code. Let's see who gets the best accuracy at the end.
 
 ``` {r xgboost}
@@ -375,8 +377,8 @@ final_fit =
 # DIAGNOSIS - firstly diagnose the cross-validated fit, then try to get the accuracy and the confusion matrix out of the final fit
 ```
 
-*Exercise 2*
-We will for a moment pretend to be judges. 
+**Exercise 2**
+We will for a moment pretend to be judges. The tibble contains one column to be predicted - whether the case was granted or not - as well as multiple other possible features. Try to gauge which features would help to predict the outcome well and include them in the formula. Similarly try to toy around with the number of trees as well as the hyperparamters to achieve the best accuracy.
 
 
 ``` {r rand_forest}

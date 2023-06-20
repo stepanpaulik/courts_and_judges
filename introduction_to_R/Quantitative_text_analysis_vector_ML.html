@@ -382,6 +382,126 @@ a minimum. More often than not you need to process your data with a
 model, whether to infere something about a process or to make
 predictions.</p>
 </div>
+<div id="embeddings" class="section level2">
+<h2>Embeddings</h2>
+<p>In order for the machine learning to work, we need a way to represent
+text. Last class, we have learned regular expression, which in a very
+regular way represent text. Today we will delve into the current golden
+standard for text representation: <em>embeddings</em>.</p>
+<pre class="r"><code>animals = tibble(name = c(&quot;dog&quot;, &quot;spider&quot;, &quot;elephant&quot;, &quot;cat&quot;, &quot;wolf&quot;, &quot;lion&quot;),
+                     size = c(3.2,1,9, 2.7, 6.5, 5.2),
+                     cuteness = c(5,2,8, 6, 6, 7))</code></pre>
+<p>We have just managed to represent 4 animals with 2 variables: size
+and cuteness. Of course they depend on my personal preferences, some of
+you may think that dogs are cuter than cats. But the tibble captures the
+idea of embeddings: we can capture a meaning of words in a numeric
+vector.</p>
+<pre class="r"><code>animals %&gt;% ggplot(aes(x = size, y = cuteness, label = name)) +
+  geom_text()
+
+get_distance = function(animal1, animal2){
+  output = sqrt((animal1$size - animal2$size)**2 + (animal1$cuteness - animal2$cuteness)**2)
+  return(output)
+}
+
+get_distance(animals[animals$name == &quot;dog&quot;,],animals[animals$name == &quot;cat&quot;,])
+get_distance(animals[animals$name == &quot;dog&quot;,],animals[animals$name == &quot;elephant&quot;,])</code></pre>
+<p>Embeddings allow us to capture similarity between words in multiple
+ways. Firstly, they allow us to see which words out of our dataset are
+similar. We can calculate the similarity between two words by
+calculating their Euclidian distance (recall Pythagoras theorem from
+your high school).</p>
+<p>I created a function which calculates the distance between either two
+animals from our tiny dataset. We can see, as expected, that dog and cat
+are closer to each other than to elephant. Embeddings of words will
+hardly ever be squeezed into 2 dimensions, however, the idea of
+Euclidian distance applies equally to multidimensional spaces, only the
+formula gets more complex.</p>
+<p>Embeddings also allow us to ascertain analogous words. The idea of
+analogy is that of length and the angle between the words. From our
+graph, we can see that if we took the length and angle that goes from
+cat to lion and applied it to the dog, we would get a wolf. In other
+words, lions to cats are as wolves to dogs.</p>
+<p>And this is the basic logic behind embeddings: you represent words as
+numeric vectors, which allows you to ascertain which words are similar
+and which words are analogous. While there are alternative approaches to
+embeddings (bag-of-words for example), embeddings have dominated - the
+proof is that the Transformers algorithm behind ChatGPT also relies on
+embeddings as a starting point.</p>
+<div id="word2vec" class="section level3">
+<h3>Word2vec</h3>
+<p>Of course we cannot construct the dimensions ourselves. We need the
+help of computers to churn through large data. For that, a number of
+embedding algorithms has been developed. The word2vec was one of the
+first (still a very recent invention) and still remains quiet
+computationally cheap. It employs a neural network to build the vector
+representation of a text corpus.</p>
+<p>It also has a sibling <em>doc2vec</em>, which is suited for longer
+language features than words (sentences, paragraphs). We will now play
+around the word2vec in the context of the CJEU decisions.</p>
+<pre class="r"><code># Example code of how to create UDPipe file
+bvg_text_corpus = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds&quot;)) %&gt;% 
+  as_tibble()
+
+# Download the language model and determine the number of cores used for the process
+n.cores = detectCores() - 2
+ud_model = udpipe_download_model(language = &quot;german&quot;)
+ud_model = udpipe_load_model(ud_model$file_model)
+
+# Parallesized
+start = Sys.time()
+bvg_udpipe = udpipe(x = bvg_text_corpus, object = ud_model, parallel.cores = n.cores) %&gt;%
+  as_tibble() %&gt;% 
+  select(c(doc_id, paragraph_id, start, end, token, lemma, upos))
+end = Sys.time()
+
+# Put the UDPipe back together
+glue_udpipe = function(data){
+   output = data %&gt;%
+      group_by(doc_id) %&gt;%
+      filter(
+        !str_detect(lemma, &quot;[0-9]&quot;)
+      ) %&gt;%
+      filter(upos != &quot;PUNCT&quot;) %&gt;%
+      summarise(text = paste(lemma, collapse = &quot; &quot;) %&gt;% # Normalise and tidy the text
+                  str_to_lower() %&gt;%
+                  str_squish())
+    return(output)
+}
+
+bvg_text_corpus_lemma = glue_udpipe(data = bvg_udpipe)
+
+bvg_udpipe = readRDS(url(&#39;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_udpipe.rds&#39;))
+
+# Read the lemmatized text corpus
+bvg_text_corpus_lemma = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_lemma.rds&quot;))
+
+# Create the word2vec model
+bvg_embeddings = word2vec(x = bvg_text_corpus_lemma$text, type = &quot;cbow&quot;)
+
+# Get top_n of similar words to the listed words
+predict(bvg_embeddings, c(&quot;straftäter&quot;, &quot;urteil&quot;), type = &quot;nearest&quot;, top_n = 5)
+emb
+
+# Get similarity of words
+emb = as.matrix(bvg_embeddings)
+x = emb[c(&quot;straf&quot;, &quot;straftat&quot;, &quot;senat&quot;), ]
+word2vec_similarity(x, x)
+
+predict(bvg_embeddings, emb[&quot;straf&quot;,] - emb[&quot;entschädigung&quot;,] + emb[&quot;straftat&quot;,], type = &quot;nearest&quot;, top_n = 5)</code></pre>
+</div>
+<div id="aditional-material" class="section level3">
+<h3>Aditional material</h3>
+<ol style="list-style-type: decimal">
+<li>(You can read more comprehensive but very understandable overview of
+embeddings here)[<a href="https://gist.github.com/aparrish/2f562e3737544cf29aaf1af30362f469" class="uri">https://gist.github.com/aparrish/2f562e3737544cf29aaf1af30362f469</a>]</li>
+<li>(The word2vec description including the neural network behind can be
+found here)[<a href="https://arxiv.org/abs/1301.3781" class="uri">https://arxiv.org/abs/1301.3781</a>]</li>
+<li>(For an overview of the current hot topic, Transformers, I’d
+recommend the quite advanced series starting here)[<a href="https://towardsdatascience.com/transformers-explained-visually-part-1-overview-of-functionality-95a6dd460452" class="uri">https://towardsdatascience.com/transformers-explained-visually-part-1-overview-of-functionality-95a6dd460452</a>]</li>
+</ol>
+</div>
+</div>
 <div id="machine-learning" class="section level2">
 <h2>Machine Learning</h2>
 <div id="overview-1" class="section level3">
@@ -441,7 +561,12 @@ does not see the test data before running the diagnosis.</p>
 <h4>Example from scratch - the Lee Epstein dissents research replicated
 on the Czech Constitutional Court</h4>
 <p>We will now apply the whole process on my example data. The data are
-hand annotated 200 decisions of the constitutional court.</p>
+hand annotated 200 decisions of the constitutional court. The texts of
+the decisions have then been split into paragraph level. The paragraphs
+have been then processed via a doc2vec algorithm trained on the whole
+text corpus of the CCC decisions. Thus, each row of the tibble
+represents one paragraph translated to doc2vec representation, with
+position encoding added.</p>
 <div id="create-the-recipe" class="section level5">
 <h5>Create the recipe</h5>
 <pre class="r"><code># Load data
@@ -459,12 +584,12 @@ test_data  = testing(data_split)
 folds = vfold_cv(train_data, v = 6)
 
 # Create a recipe
-svm_rec = recipe(class ~ ., data = train_data) %&gt;%
+rec = recipe(class ~ ., data = train_data) %&gt;%
   update_role(all_double(), new_role = &quot;predictor&quot;) %&gt;%
   update_role(doc_id, new_role = &quot;ID&quot;) %&gt;%
   update_role(class, new_role = &quot;outcome&quot;) %&gt;%
   step_smote(class) 
-svm_rec</code></pre>
+rec</code></pre>
 <p>There is quite some stuff to unravel. We have a data frame, in which
 each row represents one paragraph in an annotated decisions. The data
 frame contains columns class, which we try to predict, then information
@@ -483,8 +608,14 @@ don’t want used as a predictor, and lastly all the remainign columns
 <p><strong>Class imbalance</strong> The step_smote() function is one of
 many algorithms that oversample. When there is a large imbalance between
 classes, the algorithms have hard time predicting the minority classes.
-As we can see, there is around 23.6 % of dissent paragraphs, whereas
-76.4 % of the rest.</p>
+Most machine learning algorithms for classification predictive models
+are designed for problems that assume an equal distribution of classes.
+This means that a naive application of a model may focus on learning the
+characteristics of the more prevalent observations only, neglecting the
+examples from the minority class that is, in fact, of more interest to
+us (dissents) and whose predictions are more valuable.</p>
+<p>As we can see, there is around 23.6 % of dissent paragraphs, whereas
+76.4 % of the rest, which is roughly 1:4 ratio.</p>
 <pre class="r"><code>data %&gt;%
   group_by(class) %&gt;%
   summarise(N = n()) %&gt;%
@@ -494,11 +625,269 @@ the minority class. SMOTE is the “OG” oversampling algorithm. From my
 testing, oversampling the dissent class improved the accuracy quite
 substantially.</p>
 </div>
+<div id="determine-the-model" class="section level5">
+<h5>Determine the model</h5>
+<p>Which model fits the required task and data depends on a lot of
+aspects: the researcher’s knowledge of possible models, the data
+structure, the kind of classification (binomial, multinomial etc.), the
+amount of data etc. There are three “hot topic” classification
+algorithms.</p>
+<ol style="list-style-type: decimal">
+<li>Support vector machines (<a href="https://towardsdatascience.com/support-vector-machine-introduction-to-machine-learning-algorithms-934a444fca47">Read
+this for an overview</a>), which are the simplest out of the three but
+very efficient and fast. Their advantage is that they have only one
+hyperparameter to tune, thus, the tuning doesn’t take too long (although
+that’s relative). Their tidymodels function is
+<em>svm_linear()</em>.</li>
+<li>Gradient boosted trees (<a href="https://towardsdatascience.com/machine-learning-part-18-boosting-algorithms-gradient-boosting-in-python-ef5ae6965be4">Read
+this for an overview</a>), which in a way correspond to how a human may
+classify something: the algorithm creates “a decision tree”, at the end
+of which it arrives to different classes. Their tidymodels function is
+<em>boost_tree()</em></li>
+<li>Random Forests (<a href="https://towardsdatascience.com/understanding-random-forest-58381e0602d2">Read
+this for an overview</a>) aim to reduce bias of decision trees by
+combining <em>n</em> trees and then classifying based on their
+combination. They internalize the testing-training dataset splitting
+into folds with a technique called <em>bootstrapping</em> - each tree
+randomly samples with replacement from the dataset, thus, each tree is
+trained on different training data (!). Their tidymodels function is
+<em>rand_forest()</em></li>
+</ol>
+<pre class="r"><code># TUNING - normally you would have to first tune the hyperparameters of the model, I will put the code here, however, we won&#39;t do it and we will just use the parameter that&#39;s result of my tuning at home
+
+# This creates a model object, in which you set the model specifications including the parameters with the tuned values or the engine of the model
+mod_tune = svm_linear(cost = tune()) %&gt;%
+  set_engine(&quot;kernlab&quot;) %&gt;%
+  set_mode(&quot;classification&quot;)
+mod_tune
+
+# FINAL model
+mod = svm_linear(cost = 0.01) %&gt;% # The cost hyperparamter 
+  set_engine(&quot;kernlab&quot;) %&gt;% # Different models have different engines, you can read all that in the documentation with the ?svm_linear command
+  set_mode(&quot;classification&quot;) # We are interested in classification and not regression because are outcome variable is a category variable
+mod</code></pre>
+</div>
+<div id="create-a-worflow" class="section level5">
+<h5>Create a worflow</h5>
+<p>Now we bind the recipe and the model into a workflow. The advantage
+of tidymodels is that you can at any time change the model without
+changing the whole code - the preceding formula and data determination
+in the recipe and the subsequent application of the model and diagnosis
+will use the same code.</p>
+<pre class="r"><code># TUNING
+wflow_tune = workflow() %&gt;%
+  add_model(mod_tune) %&gt;%
+  add_recipe(rec)
+
+# FINAL wflow
+wflow = workflow() %&gt;%
+  add_model(mod) %&gt;%
+  add_recipe(rec)</code></pre>
+</div>
+<div id="training-the-model" class="section level5">
+<h5>Training the model</h5>
+<p>We then first tune the model so that we determine the hyperparameter
+and then fit the model with that hyperparameter. You can either then fit
+the model with the finalize_fit() and the best hyperparamter values as
+an argument or you can input them in the model above and then just use
+the fit() function.</p>
+<pre class="r"><code># TUNING
+# Firstly we create a grid with the tuning parameters
+svm_tune = grid_regular(cost(), levels = 5)
+
+# We then tune the model with the tune_grid() function
+svm_tune = wflow_tune %&gt;% 
+  tune_grid(resamples = folds, grid = svm_tune)
+
+# Using various yardstick functions we can see which model parameters are the best and we save them with select_best() function
+svm_tune %&gt;% collect_metrics()
+svm_tune %&gt;% show_best(&quot;accuracy&quot;)
+best_cost = svm_tune %&gt;% select_best(&quot;accuracy&quot;)
+
+# Now we input the best parameters into the final workflow with the finalize_workflow() function
+svm_wflow_final = 
+  svm_wflow %&gt;% 
+  finalize_workflow(best_cost)
+
+# Lastly, the model is both trained and then fitted to the testing data with the last_fit() function; this function fits the finalized model on the full training data set and evaluates the finalized model on the testing data.
+svm_fit_final = svm_wflow_final %&gt;%
+  last_fit(data_split)
+
+# Final fit
+svm_fit_final = svm_wflow_final %&gt;%
+  fit(train_data)
+
+# Diagnosis
+svm_fit_final %&gt;% collect_metrics()
+
+svm_fit_final %&gt;%
+  collect_predictions() %&gt;% 
+  roc_curve(class, .pred_dissent) %&gt;% 
+  autoplot()
+
+# FINAL
+# The fitting
+svm_fit = wflow %&gt;% 
+  fit(data = train_data)
+
+# Testing the model fit on test data
+predict(svm_fit, test_data)</code></pre>
+</div>
+<div id="diagnosis" class="section level5">
+<h5>Diagnosis</h5>
+<p>The last step in the model creation is the diagnosis. There are
+countless ways to diagnose a model: confusion matrix, accuracy,
+precision, recall, ROC curve etc. All of them build on the following
+concept:</p>
+<ol style="list-style-type: lower-alpha">
+<li>true positive prediction is a prediction which was correctly
+classified as the positive class</li>
+<li>false positive prediction is a prediction which was incorrectly
+classified as the negative class when in truth it’s positive</li>
+<li>true negative prediction is a prediction which was correctly
+classified as the negative class</li>
+<li>false negative prediction is a prediction which was incorrectly
+classified as the positive class when in truth it’s negative</li>
+</ol>
+<p>The examples of diagnostic measures are:</p>
+<ol style="list-style-type: decimal">
+<li>Confusion matrix has on the Y axis the predicted values and on the X
+axis the truth values and tells you which classes were truthfully
+predicted and which were confused with others</li>
+<li>Precision is the ratio of true positive to true positive + false
+negative (i.e., how many out of all the positive predictions were truly
+positive)</li>
+<li>Recall is the ratio of true positive to true positive + false
+positive (i.e., to all positive class observations in truth)</li>
+<li>ROC curve plots the true positive rate and false positive rate</li>
+</ol>
+<pre class="r"><code># Measuring the accuracy of the basic model with the augment function or predict, which requires further specifications and more actions
+svm_aug = 
+  augment(svm_fit, test_data) %&gt;% 
+  select(doc_id, class, .pred_class)
+
+# Accuracy
+svm_aug %&gt;% 
+  accuracy(truth = class, .pred_class) # Accuracy is the proportion of the data that are predicted correctly.
+
+svm_aug %&gt;%
+  conf_mat(truth = class, .pred_class) # Self-explanatory
+
+
+
+svm_fit_cv = wflow %&gt;% 
+  fit_resamples(folds)
+svm_fit_cv
+collect_metrics(svm_fit_cv) # K-fold crossvalidation
+svm_fit_cv %&gt;%
+  collect_predictions() %&gt;%
+  roc_curve(truth = class, .pred_class)</code></pre>
+</div>
+<div id="exercises" class="section level5">
+<h5>Exercises</h5>
+<p><strong>Exercise 1</strong> In the example I gave you, we have tried
+to discern dissenting opinions and not dissenting opinions. However, I
+also built a dataset that discerns the structure of a court decision as
+such. You will now try to train a gradient boosted decision tree model
+on it. I would like you now to fill out the skeleton code below with
+details that would correspond to the new code. Let’s see who gets the
+best accuracy at the end.</p>
+<pre class="r"><code># Load data
+data_exercise = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/annotations_without_dissents.rds&quot;))
+
+# Peak into the data
+glimpse(data_exercise) # Determine whether the classes are imbalanced so that you need a oversampling step
+  
+# Write a code that splits the data into training and testing data and creates folds for the cross-validation
+
+# RECIPE
+rec = recipe() %&gt;% # Here you need to fill in the formula and the data arguments
+  update_role(all_double(), new_role = &quot;predictor&quot;) %&gt;%
+  update_role(doc_id, new_role = &quot;ID&quot;) %&gt;%
+  update_role(class, new_role = &quot;outcome&quot;) # You can also add the oversampling command here if you think it&#39;s necessary
+rec
+
+# MODEL - look up the right function for gradient boosted tree and create the whole model pipeline (you can look above, it&#39;s almost the same, but you must include the model function, determine the engine and determine the mode). 
+
+# The tuned parameters for the model function are:
+ #  trees = 1000,
+ #  mtry = 17,
+ #  min_n = 16,
+ #  tree_depth = 13,
+ #  learn_rate = 0.00540844661792405,
+ #  loss_reduction = 3.41145754172432e-08,
+ #  sample_size = 0.545441143696662
+
+# WORKFLOW - time to merge your recipe and model into a workflow
+
+
+# FINAL FIT - fit the data both via cross-validation and then with the test data
+final_fit_cv = 
+final_fit = 
+
+# DIAGNOSIS - firstly diagnose the cross-validated fit, then try to get the accuracy and the confusion matrix out of the final fit</code></pre>
+<p><strong>Exercise 2</strong> We will for a moment pretend to be
+judges. The tibble contains one column to be predicted - whether the
+case was granted or not - as well as multiple other possible features.
+Try to gauge which features would help to predict the outcome well and
+include them in the formula. Similarly try to toy around with the number
+of trees as well as the hyperparamters to achieve the best accuracy.</p>
+<pre class="r"><code># Load the data without NA values
+data = readRDS(url(&quot;https://github.com/stepanpaulik/courts_and_judges/raw/main/data/rand_forest_exercise.rds&quot;)) %&gt;% 
+  drop_na() %&gt;%
+  mutate(successful = as.character(successful)) %&gt;%
+  mutate(across(where(is.character), as.factor))
+
+# Familiarise yourself with the data
+skim(data)
+view(data)
+
+# Split the data into testing and training data
+data_split = initial_split(data, prop = 3/4)
+train_data = training(data_split)
+test_data  = testing(data_split)
+
+# Prepare data for k-fold cross-validation
+folds = vfold_cv(train_data, v = 6)
+
+# Not all features of this data set are helpful, determine which ones would you like to go in in your formula
+rec = recipe(successful ~ #, data = train_data) %&gt;% 
+  update_role(#, new_role = &quot;ID&quot;) %&gt;%
+  update_role(#, new_role = &quot;outcome&quot;) %&gt;% 
+  update_role(all_predictors(), new_role = &quot;predictor&quot;)
+rec
+
+mod = rand_forest(
+  mtry = 10,
+  trees = 1000, # This is not a hyperparameter but you can play around a little bit too and see how it impacts the results
+  min_n = 3
+) %&gt;%
+  set_mode(&quot;classification&quot;) %&gt;%
+  set_engine(&quot;ranger&quot;)
+
+wflow = workflow() %&gt;%
+  add_recipe(rec) %&gt;%
+  add_model(mod)
+
+# The fitting
+rand_forest_fit = wflow %&gt;% 
+  fit(data = train_data)
+
+# Diagnosis
+# Measuring the accuracy of the basic model with the augment function or predict, which requires further specifications and more actions
+rand_forest_aug = 
+  augment(rand_forest_fit, test_data) %&gt;% 
+  select(doc_id, successful, .pred_class)
+
+# Accuracy
+rand_forest_aug %&gt;% 
+  accuracy(truth = successful, .pred_class) # Accuracy is the proportion of the data that are predicted correctly.
+
+rand_forest_aug %&gt;%
+  conf_mat(truth = successful, .pred_class) # Self-explanatory</code></pre>
 </div>
 </div>
 </div>
-<div id="vectorisation" class="section level2">
-<h2>Vectorisation</h2>
 </div>
 
 
