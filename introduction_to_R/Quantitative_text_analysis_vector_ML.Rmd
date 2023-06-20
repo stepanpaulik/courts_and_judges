@@ -7,16 +7,8 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = FALSE)
-
-# install.packages("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost", "word2vec", "parallel", "udpipe")
-
-library(skimr)
-library(tidymodels)
-library(tidyverse)
-library(themis)
-library(udpipe)
-library(parallel)
-library(word2vec)
+install.packages("xfun")
+xfun::pkg_attach2("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost", "word2vec", "parallel", "udpipe")
 
 ```
 
