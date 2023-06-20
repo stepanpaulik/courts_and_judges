@@ -70,7 +70,8 @@ It also has a sibling *doc2vec*, which is suited for longer language features th
 ``` {r word2vec}
 # Example code of how to create UDPipe file
 bvg_text_corpus = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus.rds")) %>% 
-  as_tibble()
+  as_tibble() 
+
 
 # Download the language model and determine the number of cores used for the process
 n.cores = detectCores() - 2
@@ -98,6 +99,8 @@ glue_udpipe = function(data){
     return(output)
 }
 
+
+
 bvg_text_corpus_lemma = glue_udpipe(data = bvg_udpipe)
 
 bvg_udpipe = readRDS(url('https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_udpipe.rds'))
@@ -106,7 +109,7 @@ bvg_udpipe = readRDS(url('https://github.com/stepanpaulik/courts_and_judges/raw/
 bvg_text_corpus_lemma = readRDS(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/data/bvg_text_corpus_lemma.rds"))
 
 # Create the word2vec model
-bvg_embeddings = word2vec(x = bvg_text_corpus_lemma$text, type = "cbow")
+bvg_embeddings = word2vec(x = bvg_text_corpus$text, type = "cbow")
 
 matrix = as.matrix(bvg_embeddings)
 
