@@ -182,6 +182,7 @@ rec = recipe(class ~ ., data = train_data) %>%
   update_role(doc_id, new_role = "ID") %>%
   update_role(class, new_role = "outcome") %>%
   step_smote(class) 
+
 rec
 ```
 

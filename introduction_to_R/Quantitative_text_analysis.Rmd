@@ -8,16 +8,16 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(eval = FALSE)
 # Install packages
-install.packages("tidyverse")
-install.packages("lubridate")
-install.packages("tidytext")
-install.packages("quanteda")
-install.packages("quanteda.textstats")
-install.packages("quanteda.textmodels")
-install.packages("ldatuning")
-install.packages("seededlda")
-install.packages("udpipe")
-install.packages("parallel")
+# install.packages("tidyverse")
+# install.packages("lubridate")
+# install.packages("tidytext")
+# install.packages("quanteda")
+# install.packages("quanteda.textstats")
+# install.packages("quanteda.textmodels")
+# install.packages("ldatuning")
+# install.packages("seededlda")
+# install.packages("udpipe")
+# install.packages("parallel")
 
 
 
