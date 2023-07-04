@@ -2,7 +2,7 @@ install.packages("xfun")
 
 xfun::pkg_attach2("kernlab", "tidymodels", "tidyverse", "skimr", "ranger", "xgboost", "word2vec", "parallel", "udpipe", "quanteda", "seededlda", "quanteda.textstats", "tidytext")
 
-load(file = "workshop_data.RData")
+load(url("https://github.com/stepanpaulik/courts_and_judges/raw/main/introduction_to_R/workshop_data.RData"))
 
 # INTRODUCTION TO R
 
